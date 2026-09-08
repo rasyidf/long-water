@@ -19,6 +19,10 @@ export class WhaleRenderer implements System {
     wg.clear();
 
     for (const w of pod.whales) {
+      // Deterministic variation: uses the whale's phase (w.ph) to give it a unique thickness.
+      // Varies smoothly between 22 (sleek) and 34 (chunky).
+      const podWidth = 28 + Math.sin(w.ph || 0) * 6;
+
       if (w.state === "following") {
         if (w.spine)
           this.view.draw(
@@ -30,7 +34,8 @@ export class WhaleRenderer implements System {
               skin: C.wildSkin,
               belly: C.wildBelly,
               alpha: 0.95,
-            },
+              width: podWidth, // <--- Custom Pod Width
+            } as any, // 'as any' is safe here if width isn't strictly typed in your interface yet
             cam,
           );
         continue;
@@ -49,6 +54,7 @@ export class WhaleRenderer implements System {
             w.y +
             Math.sin(clock.t * 1.1 + w.ph - i * 0.5) * (2 + (i / 15) * 12),
         });
+      
       this.view.draw(
         wg,
         sp,
@@ -58,11 +64,13 @@ export class WhaleRenderer implements System {
           skin: C.wildSkin,
           belly: C.wildBelly,
           alpha: Math.min(0.92, v),
-        },
+          width: podWidth, // <--- Custom Ambient Pod Width
+        } as any,
         cam,
       );
     }
 
+    // --- Draw the Main Player Whale ---
     this.view.draw(
       wg,
       whale.spine,
@@ -72,10 +80,12 @@ export class WhaleRenderer implements System {
         skin: C.skin,
         belly: C.belly,
         alpha: 1,
-      },
+        width: 38, // <--- Massive, distinct width for the player
+      } as any,
       cam,
     );
 
+    // --- Draw Bubbles ---
     for (const b of ctx.particles.bubbles) {
       wg.circle(cam.sx(b.x), cam.sy(b.y), b.r * cam.scale * 1.5);
       wg.fill({ color: C.foam, alpha: Math.min(0.7, b.life) });
