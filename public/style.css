@@ -1,0 +1,303 @@
+:root {
+  --abyss: #04080e;
+  --surface: #62c7bb;
+  --song: #9fe8d5;
+  --krill: #ff9c5b;
+  --bone: #ded6c6;
+  --alarm: #d9603f;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--abyss);
+  color: var(--bone);
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+#app,
+#pixi-container {
+  position: fixed;
+  inset: 0;
+}
+
+/* only the Pixi canvas is pinned full-viewport; the ruler canvas stays in flow */
+#pixi-container canvas {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+}
+
+.hud {
+  position: fixed;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.zone {
+  top: 24px;
+  left: 30px;
+  font-family: Georgia, "Times New Roman", serif;
+  font-style: italic;
+  font-size: 21px;
+  opacity: 0.85;
+}
+.zone .leg {
+  display: block;
+  font-style: normal;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  opacity: 0.5;
+  margin-top: 5px;
+  font-variant-numeric: tabular-nums;
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+}
+
+.goal {
+  top: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 12.5px;
+  letter-spacing: 0.05em;
+  opacity: 0.4;
+  text-align: center;
+}
+
+.instruments {
+  left: 30px;
+  bottom: 28px;
+  width: 248px;
+}
+.meter {
+  margin-bottom: 13px;
+}
+.meter .label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  opacity: 0.6;
+  margin-bottom: 5px;
+  font-variant-numeric: tabular-nums;
+}
+.meter .track {
+  height: 3px;
+  background: rgba(222, 214, 198, 0.15);
+}
+.meter .fill {
+  height: 100%;
+  width: 100%;
+  transform-origin: left center;
+  background: var(--bone);
+}
+#breathFill {
+  background: var(--surface);
+  transition: background 0.3s linear;
+}
+#energyFill {
+  background: var(--krill);
+}
+#breathFill.low {
+  background: var(--alarm);
+}
+
+.pod {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  margin-top: 17px;
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  opacity: 0.62;
+}
+.pod .dots {
+  display: flex;
+  gap: 5px;
+}
+.pod .dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--song);
+  opacity: 0.9;
+}
+.pod .draft {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.72;
+  color: var(--song);
+}
+
+.ruler {
+  top: 0;
+  right: 0;
+  height: 100%;
+  width: 78px;
+}
+.ruler canvas {
+  display: block;
+  width: 78px;
+  height: 100%;
+}
+
+.hint {
+  left: 30px;
+  bottom: 150px;
+  font-size: 12.5px;
+  letter-spacing: 0.04em;
+  color: var(--song);
+  opacity: 0;
+  transition: opacity 0.5s ease;
+  max-width: 44ch;
+}
+.hint.show {
+  opacity: 0.82;
+}
+
+.card {
+  position: fixed;
+  inset: 0;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 0 max(30px, 9vw);
+  background: rgba(4, 8, 14, 0.87);
+  transition: opacity 0.8s ease;
+}
+.card.gone {
+  opacity: 0;
+  pointer-events: none;
+}
+.card h1 {
+  font-family: Georgia, "Times New Roman", serif;
+  font-weight: 400;
+  font-size: clamp(34px, 5.4vw, 62px);
+  line-height: 1.04;
+  margin: 0;
+  letter-spacing: -0.012em;
+}
+.card h1 em {
+  font-style: italic;
+  opacity: 0.6;
+}
+.card p {
+  max-width: 46ch;
+  font-size: 14.5px;
+  line-height: 1.72;
+  opacity: 0.74;
+  margin: 18px 0 0;
+}
+.keys {
+  margin-top: 28px;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 9px 18px;
+  font-size: 13px;
+  align-items: baseline;
+}
+.keys b {
+  font-weight: 500;
+  color: var(--song);
+  white-space: nowrap;
+}
+.keys span {
+  opacity: 0.68;
+}
+.start {
+  margin-top: 32px;
+  font-size: 12.5px;
+  letter-spacing: 0.06em;
+  color: var(--surface);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card,
+  .hint {
+    transition: none;
+  }
+}
+
+/* ---- pause menu ---- */
+.menu {
+  position: fixed;
+  inset: 0;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 4px;
+  padding: 0 max(30px, 9vw);
+  background: rgba(4, 8, 14, 0.78);
+  backdrop-filter: blur(2px);
+}
+.menu[hidden] {
+  display: none;
+}
+.menu h2 {
+  font-family: Georgia, "Times New Roman", serif;
+  font-weight: 400;
+  font-style: italic;
+  font-size: 26px;
+  margin: 0 0 14px;
+  opacity: 0.82;
+}
+.menu button {
+  appearance: none;
+  background: none;
+  border: 0;
+  padding: 7px 0;
+  font: inherit;
+  font-size: 15px;
+  letter-spacing: 0.03em;
+  color: var(--bone);
+  opacity: 0.72;
+  cursor: pointer;
+  text-align: left;
+  transition: opacity 0.15s ease;
+}
+.menu button:hover,
+.menu button:focus-visible {
+  opacity: 1;
+  color: var(--song);
+  outline: none;
+}
+.menu .note {
+  margin-top: 12px;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  color: var(--song);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+.menu .note.show {
+  opacity: 0.8;
+}
+.menu .options {
+  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: 13px;
+  opacity: 0.8;
+}
+.menu .options[hidden] {
+  display: none;
+}
+.menu .options label {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.menu .options input[type="range"] {
+  width: 180px;
+  accent-color: var(--surface);
+}

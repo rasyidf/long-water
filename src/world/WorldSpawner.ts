@@ -1,0 +1,143 @@
+/**
+ * Populates the dynamic stores from the generated world. Pure setup: reads the
+ * heightfield + rng, writes entities. Each block is independent — delete one or
+ * add another without touching the rest.
+ */
+import { DARK_START, WORLD_W } from "../config/constants";
+import type { Rng } from "../core/rng";
+import type { KrillPart, KrillStore, SchoolStore, Swarm } from "../state/Fauna";
+import type { ParticleStore, ShipStore } from "../state/Hazards";
+import type { Pod } from "../state/Pod";
+import { clamp } from "../core/math";
+import type { Heightfield } from "./Heightfield";
+
+function makeSwarm(rng: Rng, x: number, y: number, r: number): Swarm {
+  const parts: KrillPart[] = [];
+  for (let k = 0; k < 120; k++) {
+    parts.push({
+      a: rng.next() * Math.PI * 2,
+      r: Math.sqrt(rng.next()) * r,
+      ph: rng.next() * 9,
+      px: 0,
+      py: 0,
+      kx: 0,
+      ky: 0,
+    });
+  }
+  return {
+    x,
+    y,
+    baseY: y,
+    r,
+    r0: r,
+    parts,
+    amount: 100,
+    lit: 0,
+    spin: rng.next() < 0.5 ? -1 : 1,
+    ph: rng.next() * 9,
+    panic: 0,
+  };
+}
+
+export function spawnWorld(
+  rng: Rng,
+  world: Heightfield,
+  stores: {
+    krill: KrillStore;
+    schools: SchoolStore;
+    pod: Pod;
+    ships: ShipStore;
+    particles: ParticleStore;
+  },
+): void {
+  const { krill, schools, pod, ships, particles } = stores;
+
+  // krill — sits over upwelling, not on rock
+  krill.swarms.push(makeSwarm(rng, 2400, 1450, 420));
+  for (let x = 6200; x < WORLD_W - 2000; x += rng.range(4200, 8600)) {
+    const t = world.tileNameAt(x);
+    if (t === "seamount" || t === "shelf") continue;
+    const y = Math.min(world.floorAt(x) - 420, rng.range(1250, 2600));
+    if (y < DARK_START) continue;
+    krill.swarms.push(makeSwarm(rng, x, y, rng.range(300, 560)));
+  }
+
+  // fish schools (boids) — not food
+  for (let x = 3000; x < WORLD_W - 2000; x += rng.range(5000, 9000)) {
+    const y = clamp(rng.range(300, world.floorAt(x) - 500), 200, 3200);
+    const fish = [];
+    for (let i = 0; i < 34; i++)
+      fish.push({
+        x: x + rng.range(-260, 260),
+        y: y + rng.range(-160, 160),
+        vx: rng.range(-40, 40),
+        vy: rng.range(-18, 18),
+      });
+    schools.schools.push({
+      x,
+      y,
+      ax: x,
+      ay: y,
+      fish,
+      lit: 0,
+      ph: rng.next() * 9,
+    });
+  }
+
+  // pod — one near the start, then scattered down the route
+  pod.add({
+    x: 3400,
+    y: 1000,
+    vx: -10,
+    vy: 0,
+    state: "wild",
+    lit: 0,
+    replyAt: 0,
+    cool: 0,
+    heard: false,
+    answeredUntil: 0,
+    slot: -1,
+    stress: 0,
+    nextSong: 0,
+    ph: 2.1,
+    size: 0.8,
+    wag: 0,
+    base: null,
+    spine: null,
+  });
+  for (let x = 11_000; x < WORLD_W - 4000; x += rng.range(9000, 15_000)) {
+    pod.add({
+      x,
+      y: rng.range(500, 1700),
+      vx: rng.range(-30, 10),
+      vy: 0,
+      state: "wild",
+      lit: 0,
+      replyAt: 0,
+      cool: 0,
+      heard: false,
+      answeredUntil: 0,
+      slot: -1,
+      stress: 0,
+      nextSong: 0,
+      ph: rng.next() * 9,
+      size: rng.range(0.6, 0.92),
+      wag: 0,
+      base: null,
+      spine: null,
+    });
+  }
+
+  // ships — only across the shipping lane
+  for (let x = 60_000; x < 92_000; x += rng.range(7000, 12_000))
+    ships.ships.push({ x, v: rng.range(-70, 70), len: rng.range(900, 1900) });
+
+  // marine snow — a small parallax field, wrapped in screen space by the renderer
+  for (let i = 0; i < 380; i++)
+    particles.snow.push({
+      x: rng.next() * 4000,
+      y: rng.next() * 4000,
+      s: rng.range(0.4, 1.6),
+      d: rng.range(0.35, 1),
+    });
+}

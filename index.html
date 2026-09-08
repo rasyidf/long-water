@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+    <link rel="stylesheet" href="/style.css" />
+    <title>Long Water / migration prototype</title>
+  </head>
+
+  <body>
+    <div id="app"><div id="pixi-container"></div></div>
+
+    <div class="hud zone">
+      <span id="zoneName">Continental shelf</span>
+      <span class="leg" id="leg">0.0 of 12.0 km</span>
+    </div>
+    <div class="hud goal" id="goal">South to warm water. The krill is below the light.</div>
+
+    <div class="hud instruments">
+      <div class="meter">
+        <div class="label"><span>Breath</span><span id="breathNum">100</span></div>
+        <div class="track"><div class="fill" id="breathFill"></div></div>
+      </div>
+      <div class="meter">
+        <div class="label"><span>Reserves</span><span id="energyNum">100</span></div>
+        <div class="track"><div class="fill" id="energyFill"></div></div>
+      </div>
+      <div class="pod">
+        <span>Pod</span><span class="dots" id="podDots"></span>
+        <span class="draft" id="draft"></span>
+      </div>
+    </div>
+
+    <div class="hud hint" id="hint"></div>
+    <div class="hud ruler"><canvas id="ruler"></canvas></div>
+
+    <div class="menu" id="menu" hidden>
+      <h2>Paused</h2>
+      <button type="button" data-act="resume">Resume</button>
+      <button type="button" data-act="restart">Restart this leg</button>
+      <button type="button" data-act="save">Save</button>
+      <button type="button" data-act="load">Load</button>
+      <button type="button" data-act="options">Options</button>
+      <button type="button" data-act="exit">Exit to title</button>
+      <div class="options" id="menuOptions" hidden>
+        <label>
+          Volume
+          <input type="range" id="optVolume" min="0" max="100" step="1" value="100" />
+        </label>
+      </div>
+      <div class="note" id="menuNote"></div>
+    </div>
+
+    <div class="card" id="card">
+      <h1>Long Water<br /><em>one leg of the migration</em></h1>
+      <p>
+        You are a blue whale, twenty-eight metres, moving south. Sunlight gives out
+        around a hundred and eighty metres and the krill lives below that line, so you
+        sing to find it. Singing costs air, and air is at the surface. Whales that
+        answer you will fall in behind, and a pod sings further than one whale can.
+      </p>
+      <div class="keys">
+        <b>W A S D</b><span>swim, with the momentum of a very large animal</span>
+        <b>Shift</b><span>surge, and lunge-feed through krill</span>
+        <b>Space</b><span>sing, and call the pod in with you</span>
+      </div>
+      <div class="start" id="startLine">Press any key to take a breath</div>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
