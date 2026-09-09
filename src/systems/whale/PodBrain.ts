@@ -20,6 +20,9 @@ import type { Intent } from "./locomotion";
 /** desired velocity → force gain; matches the old `v += (want-v)*min(1,dt*3)` */
 const APPROACH_GAIN = 3;
 
+/** Fast euclidean distance helper (Math.hypot is notoriously slow in V8) */
+const dist = (dx: number, dy: number) => Math.sqrt(dx * dx + dy * dy);
+
 export class PodBrain {
   private readonly out: Intent = {
     ax: 0,
@@ -55,7 +58,7 @@ export class PodBrain {
     if (w.state === "answered") {
       const dx = whale.x - b.x;
       const dy = whale.y - b.y;
-      const d = Math.hypot(dx, dy) || 1;
+      const d = dist(dx, dy) || 1;
       o.ax += (dx / d) * 60;
       o.ay += (dy / d) * 55;
     }
@@ -72,69 +75,94 @@ export class PodBrain {
     const b = w.body;
     const des = this.des;
 
-    // formation anchor in the leader's wake, kept in the leader's depth band
+    // 1. Formation Anchor (wake targeting)
     const lead = 420 + w.slot * 260;
-    const side = (w.slot % 2 ? 1 : -1) * (120 + w.slot * 22);
+    const side = (w.slot % 2 !== 0 ? 1 : -1) * (120 + w.slot * 22);
     const a = whale.trail.pointBeside(lead, side);
     let tx = a.x;
     let ty = clamp(a.y, whale.y - 480, whale.y + 640);
 
-    // fallen far behind → steer straight at a point just behind the leader
-    const gap = Math.hypot(whale.x - b.x, whale.y - b.y);
+    // 2. Catch-up mechanics
+    const wdx = whale.x - b.x;
+    const wdy = whale.y - b.y;
+    const gap = dist(wdx, wdy);
+    
     if (gap > 1500) {
       const catchUp = clamp01((gap - 1500) / 2500);
       tx += (whale.x - whale.facing * 300 - tx) * catchUp;
       ty += (whale.y - ty) * catchUp;
     }
 
-    // hunger → divert to, and feed on, the nearest krill swarm
+    // 3. Hunger & Feeding
     w.hunger = Math.min(1, w.hunger + dt * 0.02);
     let feeding = false;
+    
     if (w.hunger > 0.34 && gap < 1500) {
       let best: Swarm | null = null;
       let bestD = 2400;
+      
       for (const s of krill.swarms) {
         if (s.amount <= 15) continue;
-        if (Math.abs(s.y - whale.y) > 1000) continue; // don't abandon the pod
-        const d = Math.hypot(s.x - b.x, s.y - b.y);
+        
+        // Fast vertical check (replaces Math.abs)
+        const dy = s.y - whale.y;
+        if (dy > 1000 || dy < -1000) continue; 
+        
+        const sdx = s.x - b.x;
+        const sdy = s.y - b.y;
+        
+        // Manhattan bounding box early-out (avoids sqrt cost)
+        if (sdx > bestD || sdx < -bestD || sdy > bestD || sdy < -bestD) continue;
+        
+        const d = dist(sdx, sdy);
         if (d < bestD) {
           bestD = d;
           best = s;
         }
       }
+      
       if (best) {
         const pull = Math.min(0.55, w.hunger);
         tx += (best.x - tx) * pull;
         ty += (best.y - ty) * pull;
-        if (Math.hypot(best.x - b.x, (best.y - b.y) * 1.4) < best.r0 + 150) {
+        
+        const bdx = best.x - b.x;
+        const bdy = (best.y - b.y) * 1.4;
+        
+        if (dist(bdx, bdy) < best.r0 + 150) {
           best.amount -= Math.min(best.amount, 24 * dt);
           best.lit = 1;
           best.panic = 1;
           w.hunger = Math.max(0, w.hunger - dt * 1.1);
           w.stress = Math.max(0, w.stress - dt);
           feeding = true;
-          if (Math.random() < 0.2)
+          
+          if (Math.random() < 0.2) {
             bus.emit("fx:bubbles", { x: b.x, y: b.y, count: 1, splash: false });
-          if (stats.once("pod-fed"))
+          }
+          if (stats.once("pod-fed")) {
             bus.emit("hint:show", {
               text: "The pod feeds as it travels — fed whales hold formation.",
               secs: 6,
             });
+          }
         }
       }
     }
 
-    // desired velocity: seek the anchor + match the leader's travel
+    // 4. Desired Velocity
     const dx = tx - b.x;
     const dy = ty - b.y;
-    const dist = Math.hypot(dx, dy) || 1;
-    const leaderIdle = Math.hypot(whale.vx, whale.vy) < 45;
-    const minSpeed = feeding ? 40 : leaderIdle && dist < 250 ? 15 : 90;
-    const want = clamp(dist * 1.6, minSpeed, 620);
-    des.x = (dx / dist) * want + whale.vx * 0.35;
-    des.y = (dy / dist) * want + whale.vy * 0.35;
+    const distToTarget = dist(dx, dy) || 1;
+    const leaderIdle = dist(whale.vx, whale.vy) < 45;
+    
+    const minSpeed = feeding ? 40 : (leaderIdle && distToTarget < 250 ? 15 : 90);
+    const want = clamp(distToTarget * 1.6, minSpeed, 620);
+    
+    des.x = (dx / distToTarget) * want + whale.vx * 0.35;
+    des.y = (dy / distToTarget) * want + whale.vy * 0.35;
 
-    // ambient fluidity while the leader is basically stopped
+    // 5. Ambient Fluidity
     if (leaderIdle) {
       des.x += whale.facing * 42;
       const swell = clamp01((900 - b.y) / 900);
@@ -144,12 +172,18 @@ export class PodBrain {
       des.y += Math.sin(clock.t * 0.6 + w.slot * 1.3) * 16;
     }
 
-    // separation from the other followers
+    // 6. Separation (Boids-like repel)
     for (const o of crew) {
       if (o === w) continue;
+      
       const ox = b.x - o.body.x;
+      // Early out limits sqrt processing
+      if (ox > 150 || ox < -150) continue;
+      
       const oy = b.y - o.body.y;
-      const od = Math.hypot(ox, oy);
+      if (oy > 150 || oy < -150) continue;
+      
+      const od = dist(ox, oy);
       if (od > 0.001 && od < 150) {
         const p = (150 - od) / 150;
         des.x += (ox / od) * p * 260;
@@ -157,24 +191,28 @@ export class PodBrain {
       }
     }
 
-    // stay off the seabed, stay under the surface
+    // 7. Environment Boundaries
     const floorHere = world.floorAt(b.x);
     if (b.y > floorHere - 320) des.y -= (b.y - (floorHere - 320)) * 2.4;
     if (b.y < 130) des.y += (130 - b.y) * 2.4;
 
-    // dive away from ship noise
+    // 8. Ship Avoidance & Stress
     let noisy = false;
     for (const s of ships.ships) {
       const sd = b.x - s.x;
-      if (Math.abs(sd) < 2400 && b.y < 1600) {
-        const p = 1 - Math.abs(sd) / 2400;
-        des.x += Math.sign(sd || 1) * p * 220;
+      if (sd > -2400 && sd < 2400 && b.y < 1600) {
+        const absSd = sd >= 0 ? sd : -sd;
+        const p = 1 - absSd / 2400;
+        
+        // Fast substitute for Math.sign(sd || 1)
+        des.x += (sd >= 0 ? 1 : -1) * p * 220; 
         des.y += p * 340;
-        if (Math.abs(sd) < 1800 && b.y < 1200) noisy = true;
+        
+        if (absSd < 1800 && b.y < 1200) noisy = true;
       }
     }
 
-    // sustained ship noise breaks a whale off the pod
+    // 9. Breaking off mechanics
     w.stress = noisy ? w.stress + dt : Math.max(0, w.stress - dt * 0.6);
     if (w.stress > 9) {
       w.state = "lost";
@@ -192,6 +230,7 @@ export class PodBrain {
       return;
     }
 
+    // 10. Apply Final Forces
     this.out.ax = (des.x - b.vx) * APPROACH_GAIN;
     this.out.ay = (des.y - b.vy) * APPROACH_GAIN;
   }
