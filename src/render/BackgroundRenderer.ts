@@ -14,7 +14,7 @@ export class BackgroundRenderer implements System {
 
   init(ctx: GameContext): void {
     for (const z of ZONES) {
-      this.waterTex[z.name] = gradientTexture(
+      this.waterTex[z.id] = gradientTexture(
         [
           [0, hex(z.shelf)],
           [0.28, hex(z.deep)],
@@ -74,7 +74,7 @@ export class BackgroundRenderer implements System {
     const y1 = cam.sy(3200);
 
     const z = zoneAt(whale.x);
-    L.waterSprite.texture = this.waterTex[z.name];
+    L.waterSprite.texture = this.waterTex[z.id];
     L.waterSprite.x = 0;
     L.waterSprite.width = VW;
     L.waterSprite.y = y0;

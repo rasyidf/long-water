@@ -6,6 +6,7 @@
  */
 import type { GameContext } from "../core/GameContext";
 import type { System } from "../core/System";
+import { t } from "../i18n";
 import { hasSave, load, save } from "../state/Snapshot";
 
 const OPTS_KEY = "long-water:opts";
@@ -48,6 +49,7 @@ export class PauseMenu implements System {
 
   init(ctx: GameContext): void {
     this.ctx = ctx;
+    this.localize();
 
     const opts = readOpts();
     this.volume.value = String(Math.round(opts.volume * 100));
@@ -70,6 +72,18 @@ export class PauseMenu implements System {
     });
   }
 
+  /** fill the static `#menu` DOM from the string table */
+  private localize(): void {
+    this.menu.querySelector("h2")!.textContent = t("menu.title");
+    for (const btn of this.menu.querySelectorAll<HTMLButtonElement>(
+      "button[data-act]",
+    )) {
+      btn.textContent = t(`menu.${btn.dataset.act}`);
+    }
+    const volumeLabel = this.optionsPanel.querySelector("label")?.firstChild;
+    if (volumeLabel) volumeLabel.textContent = t("menu.volume");
+  }
+
   /** called from Input on Escape */
   toggle(): void {
     const { clock, whale } = this.ctx;
@@ -87,14 +101,16 @@ export class PauseMenu implements System {
         location.reload();
         break;
       case "save":
-        this.flash(save(this.ctx) ? "Saved." : "Could not save.");
+        this.flash(
+          save(this.ctx) ? t("menu.note.saved") : t("menu.note.saveFail"),
+        );
         break;
       case "load":
-        if (!hasSave()) this.flash("No save yet.");
+        if (!hasSave()) this.flash(t("menu.note.noSave"));
         else if (load(this.ctx)) {
-          this.flash("Loaded.");
+          this.flash(t("menu.note.loaded"));
           bus.emit("game:resume");
-        } else this.flash("That save is for a different world.");
+        } else this.flash(t("menu.note.wrongWorld"));
         break;
       case "options":
         this.optionsPanel.hidden = !this.optionsPanel.hidden;

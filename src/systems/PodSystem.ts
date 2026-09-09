@@ -166,9 +166,33 @@ export class PodSystem implements System {
     const dx = tx - w.x;
     const dy = ty - w.y;
     const dist = Math.hypot(dx, dy) || 1;
-    const want = clamp(dist * 1.6, feeding ? 40 : 90, 620);
+
+    // 1. Detect if the leader is basically stopped
+    const leaderSpeed = Math.hypot(whale.vx, whale.vy);
+    const isLeaderIdle = leaderSpeed < 45;
+
+    // 2. Drop the minimum speed if the leader is idle and we've reached the anchor.
+    // This stops them from aggressively overshooting a stationary target.
+    const minSpeed = feeding ? 40 : (isLeaderIdle && dist < 250 ? 15 : 90);
+    const want = clamp(dist * 1.6, minSpeed, 620);
+
     let vx = (dx / dist) * want + whale.vx * 0.35;
     let vy = (dy / dist) * want + whale.vy * 0.35;
+
+    // 3. Inject ambient fluidity when the leader is idle
+    if (isLeaderIdle) {
+      // Gentle forward glide keeps their bodies horizontal, matching the player whale
+      vx += whale.facing * 42;
+
+      // Orbital swell near the surface (offset by w.slot so they don't sync perfectly)
+      const swell = clamp01((900 - w.y) / 900);
+      const sw = clock.t * 0.9 + w.x * 0.0012 + w.slot;
+      vx += Math.sin(sw) * 34 * swell;
+      vy += Math.cos(sw * 1.15) * 24 * swell;
+
+      // Deep water organic bobbing
+      vy += Math.sin(clock.t * 0.6 + w.slot * 1.3) * 16;
+    }
 
     // --- separation from the other followers ---
     for (const o of crew) {

@@ -59,6 +59,7 @@ export class WhaleMovementSystem implements System {
     ) {
       this.kickCooldown = 0.85;
       whale.breath -= 4;
+      whale.wag += 1.5;
       let dx = move.x;
       let dy = move.y;
       if (dx === 0 && dy === 0) {
@@ -111,8 +112,14 @@ export class WhaleMovementSystem implements System {
       const t = clampTurn(preVx, preVy, whale.vx, whale.vy, 2.4, dt);
       whale.vx = t.x;
       whale.vy = t.y;
+
+      if (move.x === 0 && move.y === 0 && !surging) {
+        // Gently pull the vertical velocity toward 0 so the whale levels out
+        whale.vy *= (1 - 0.8 * dt);
+      }
     } else {
-      whale.vy += 1400 * dt; // out of water: gravity
+      const apexFactor = Math.abs(whale.vy) < 200 ? 0.75 : 1.0;
+      whale.vy += 1400 * apexFactor * dt;
     }
 
     const wasUnder = whale.y > 0;

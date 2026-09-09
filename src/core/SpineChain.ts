@@ -62,13 +62,22 @@ export function applyUndulation(
     out[i].x = base[i].x;
     out[i].y = base[i].y;
   }
+
   for (let i = 1; i < n; i++) {
     const t = i / (n - 1);
-    const dx = base[i].x - base[i - 1].x;
-    const dy = base[i].y - base[i - 1].y;
+    
+    // SMOOTHER TANGENT: Look ahead and behind, rather than just behind
+    const prev = base[i - 1];
+    const next = i < n - 1 ? base[i + 1] : base[i]; // tail cap
+    
+    const dx = next.x - prev.x;
+    const dy = next.y - prev.y;
     const d = Math.hypot(dx, dy) || 1;
+    
     const rear = Math.max(0, (t - 0.34) / 0.66);
     const off = Math.sin(wagPhase - i * 0.62) * strokeAmp * Math.pow(rear, 1.7);
+    
+    // Apply normal
     out[i].x += (-dy / d) * off;
     out[i].y += (dx / d) * off;
   }

@@ -2,7 +2,8 @@
  * The static world: a WFC tiling turned into a smoothed seabed heightfield,
  * plus the sonar-lit accumulator that renderers read. Built once at start.
  */
-import { CELL, COL, NCELL, NCOL, WORLD_W } from "../config/constants";
+import { CELL, COL, NCELL, NCOL } from "../config/constants";
+import { LEG } from "../config/route";
 import { TILES } from "../config/tiles";
 import { clamp, lerp } from "../core/math";
 import { fbm, type Rng } from "../core/rng";
@@ -66,6 +67,6 @@ export class Heightfield {
 
   /** past the goal line */
   get finishX(): number {
-    return WORLD_W - 400;
+    return LEG.finishX;
   }
 }

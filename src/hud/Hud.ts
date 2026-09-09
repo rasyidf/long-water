@@ -1,9 +1,10 @@
 /** The instrument panel: breath / reserves meters, zone name, leg distance, pod
  * dots and drafting readout. Pure DOM, driven each frame from the context. */
-import { UNIT_M, WORLD_W } from "../config/constants";
+import { LEG, kmCovered, legLengthKm } from "../config/route";
 import { zoneAt } from "../config/zones";
 import type { GameContext } from "../core/GameContext";
 import type { System } from "../core/System";
+import { t } from "../i18n";
 
 const $ = (id: string) => document.getElementById(id)!;
 
@@ -20,6 +21,11 @@ export class Hud implements System {
     draft: $("draft"),
   };
   private lastPod = -1;
+  private lastZone = "";
+
+  init(): void {
+    document.getElementById("goal")!.textContent = t(`leg.${LEG.id}.goal`);
+  }
 
   render(ctx: GameContext): void {
     const { whale, pod } = ctx;
@@ -30,11 +36,14 @@ export class Hud implements System {
     this.el.breathFill.classList.toggle("low", whale.breath < 30);
 
     const z = zoneAt(whale.x);
-    if (this.el.zoneName.textContent !== z.name)
-      this.el.zoneName.textContent = z.name;
-    this.el.leg.textContent =
-      `${((whale.x * UNIT_M) / 1000).toFixed(1)} of ` +
-      `${((WORLD_W * UNIT_M) / 1000).toFixed(1)} km`;
+    if (this.lastZone !== z.id) {
+      this.lastZone = z.id;
+      this.el.zoneName.textContent = t(`zone.${z.id}`);
+    }
+    this.el.leg.textContent = t("hud.leg", {
+      done: kmCovered(whale.x).toFixed(1),
+      total: legLengthKm().toFixed(1),
+    });
 
     const n = pod.followers().length;
     if (n !== this.lastPod) {
@@ -46,8 +55,10 @@ export class Hud implements System {
         this.el.podDots.appendChild(d);
       }
       this.el.draft.textContent = n
-        ? `drafting, ${Math.round((1 - 1 / (1 + 0.2 * n)) * 100)}% less effort`
-        : "swimming alone";
+        ? t("hud.draft.drafting", {
+            pct: Math.round((1 - 1 / (1 + 0.2 * n)) * 100),
+          })
+        : t("hud.draft.alone");
     }
   }
 }
