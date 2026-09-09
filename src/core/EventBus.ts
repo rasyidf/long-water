@@ -46,6 +46,8 @@ export interface GameEvents {
 
   "whale:surfaced": { impactVy: number; pos: Vec2 };
   "whale:submerged": { pos: Vec2 };
+  /** the whale left the water fast enough to somersault; `flips` full turns */
+  "whale:breach": { flips: number; pos: Vec2 };
   "krill:fed": { swarmsFed: number };
 
   /** request a transient on-screen hint */

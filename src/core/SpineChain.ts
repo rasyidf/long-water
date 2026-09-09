@@ -86,3 +86,31 @@ export function applyUndulation(
 export function strokeAmpFor(speed: number): number {
   return Math.max(3, Math.min(11, 3 + speed * 0.045));
 }
+
+/**
+ * Write a rigid, gently banana-curved body into `out` (length `n`), centred on
+ * `(cx, cy)`, its long axis pointing at `angle`. Used for the airborne breach
+ * somersault, where the spine is a spinning stiff body rather than a chain that
+ * tail-chases a head. `bend` is the peak lateral bow in world units; `facing`
+ * (±1) picks which way the belly bows so it matches the swimming pose.
+ */
+export function rigidBody(
+  out: Vec2[],
+  cx: number,
+  cy: number,
+  len: number,
+  angle: number,
+  bend: number,
+  facing: number,
+): void {
+  const n = out.length;
+  const c = Math.cos(angle);
+  const s = Math.sin(angle);
+  for (let i = 0; i < n; i++) {
+    const t = i / (n - 1); // 0 head .. 1 tail
+    const along = (0.5 - t) * len; // +half at the head
+    const bow = Math.sin(t * Math.PI) * bend * facing;
+    out[i].x = cx + c * along - s * bow;
+    out[i].y = cy + s * along + c * bow;
+  }
+}

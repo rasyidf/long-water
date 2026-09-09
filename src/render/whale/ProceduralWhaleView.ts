@@ -5,6 +5,8 @@ import { mixColor } from "../color";
 import type { WhaleDrawOptions, WhaleView } from "./WhaleView";
 
 const BODY_END = 0.94;
+/** upper bound on hull segments per side; the point pools are sized for this */
+const MAX_STEPS = 44;
 
 /** Authentic Blue Whale body proportions. `juv` 0..1 morphs toward a calf:
  * the head takes up more of the body and is blunter, the forebody stays full,
@@ -25,89 +27,98 @@ const topHalf = (t: number, w: number, juv = 0): number =>
 const botHalf = (t: number, w: number, juv = 0): number =>
   profile(t, w, juv) * (0.58 + 0.15 * smoothstep(0.5, 0.1, t));
 
-function blob(g: Graphics, pts: Vec2[]): void {
-  const n = pts.length;
-  if (n < 3) return;
+/** Smooth closed curve through `pts[0..count)`, quadratics via the midpoints. */
+function drawBlob(g: Graphics, pts: Vec2[], count: number): void {
+  if (count < 3) return;
   const a = pts[0];
-  const z = pts[n - 1];
+  const z = pts[count - 1];
   g.moveTo((z.x + a.x) / 2, (z.y + a.y) / 2);
-  for (let i = 0; i < n; i++) {
+  for (let i = 0; i < count; i++) {
     const c = pts[i];
-    const d = pts[(i + 1) % n];
+    const d = pts[(i + 1) % count];
     g.quadraticCurveTo(c.x, c.y, (c.x + d.x) / 2, (c.y + d.y) / 2);
   }
   g.closePath();
 }
 
 export class ProceduralWhaleView implements WhaleView {
-  draw(g: Graphics, sp: Vec2[], opts: WhaleDrawOptions, cam: Camera): void {
+  // Pre-allocated point pools + scratch vectors — draw() touches no `new` so a
+  // pod of whales at 60fps produces no per-frame garbage.
+  private readonly outline: Vec2[] = ProceduralWhaleView.pool();
+  private readonly pale: Vec2[] = ProceduralWhaleView.pool();
+  private readonly p: Vec2 = { x: 0, y: 0 };
+  private readonly f: Vec2 = { x: 0, y: 0 };
+  private readonly per: Vec2 = { x: 0, y: 0 };
+  private readonly w0: Vec2 = { x: 0, y: 0 };
+
+  private static pool(): Vec2[] {
+    return Array.from({ length: MAX_STEPS * 2 + 5 }, () => ({ x: 0, y: 0 }));
+  }
+
+  draw(
+    g: Graphics,
+    sp: ReadonlyArray<Vec2>,
+    opts: WhaleDrawOptions,
+    cam: Camera,
+  ): void {
     const { scale, facing, skin, belly, alpha } = opts;
     const width = opts.width ?? 48;
     const juv = clamp01(opts.juv ?? 0);
-    const TH = (t: number, w: number): number => topHalf(t, w, juv);
-    const BH = (t: number, w: number): number => botHalf(t, w, juv);
-
     const last = sp.length - 1;
     if (last < 1) return;
 
     const px = scale * cam.scale;
-    // 0..1 detail factor: ramps in smoothly so fins and face don't pop on/off
-    // as the camera scale drifts across a hard threshold. Full detail well
-    // before normal play zoom; only a genuinely tiny far whale drops it.
-    const detail = smoothstep(0.08, 0.26, px);
-    const faceDetail = smoothstep(0.3, 0.6, px);
+    // smooth LOD/visibility ramps so nothing pops as the camera scale drifts
+    const detail = smoothstep(0.08, 0.26, px); // fins + hull resolution
+    const faceDetail = smoothstep(0.3, 0.6, px); // eye + jaw line
 
-    const frame = (t: number): { p: Vec2; f: Vec2; per: Vec2 } => {
+    // fewer hull segments when small/far; the pools cover the upper bound
+    const STEPS = Math.max(
+      8,
+      Math.min(MAX_STEPS, Math.round(20 + 20 * detail)),
+    );
+
+    // --- spine frame + point projection, writing into pre-allocated vectors ---
+    const frameAt = (t: number): void => {
       const u = clamp01(t) * last;
       const i = Math.min(last - 1, Math.floor(u));
       const k = u - i;
-      const p = {
-        x: sp[i].x + (sp[i + 1].x - sp[i].x) * k,
-        y: sp[i].y + (sp[i + 1].y - sp[i].y) * k,
-      };
-      const a = Math.atan2(sp[i].y - sp[i + 1].y, sp[i].x - sp[i + 1].x);
-      const f = { x: Math.cos(a), y: Math.sin(a) };
-      return { p, f, per: { x: -f.y * facing, y: f.x * facing } };
+      this.p.x = sp[i].x + (sp[i + 1].x - sp[i].x) * k;
+      this.p.y = sp[i].y + (sp[i + 1].y - sp[i].y) * k;
+      const ang = Math.atan2(sp[i].y - sp[i + 1].y, sp[i].x - sp[i + 1].x);
+      this.f.x = Math.cos(ang);
+      this.f.y = Math.sin(ang);
+      this.per.x = -this.f.y * facing;
+      this.per.y = this.f.x * facing;
     };
 
-    const W = (t: number, fwd: number, prp: number): Vec2 => {
-      const fr = frame(t);
-      return {
-        x: fr.p.x + (fr.f.x * fwd + fr.per.x * prp) * scale,
-        y: fr.p.y + (fr.f.y * fwd + fr.per.y * prp) * scale,
-      };
+    /** screen-space point `fwd` along the spine tangent and `prp` off it */
+    const at = (t: number, fwd: number, prp: number, out: Vec2): Vec2 => {
+      frameAt(t);
+      const wx = this.p.x + (this.f.x * fwd + this.per.x * prp) * scale;
+      const wy = this.p.y + (this.f.y * fwd + this.per.y * prp) * scale;
+      out.x = cam.sx(wx);
+      out.y = cam.sy(wy);
+      return out;
     };
-
-    const S = (t: number, fwd: number, prp: number): Vec2 => {
-      const wPos = W(t, fwd, prp);
-      return { x: cam.sx(wPos.x), y: cam.sy(wPos.y) };
-    };
-
-    const xy = (v: Vec2): [number, number] => [cam.sx(v.x), cam.sy(v.y)];
 
     const darkSkin = mixColor(skin, 0x000000, 0.28);
     const finSkin = mixColor(skin, 0x000000, 0.18);
 
-    // ---------- 1. Continuous Main Body Hull ----------
-    const STEPS = 36;
-    const outline: Vec2[] = [];
-
-    // Smooth rounded nose
-    outline.push(S(0.01, 0, -TH(0.01, width)));
-    outline.push(S(0, 1, 0));
-    outline.push(S(0.01, 0, BH(0.01, width)));
-
+    // ---------- 1. Main body hull ----------
+    let n = 0;
+    at(0.01, 0, -topHalf(0.01, width, juv), this.outline[n++]);
+    at(0, 1, 0, this.outline[n++]);
+    at(0.01, 0, botHalf(0.01, width, juv), this.outline[n++]);
     for (let s = 1; s <= STEPS; s++) {
       const t = (s / STEPS) * BODY_END;
-      outline.push(S(t, 0, -TH(t, width)));
+      at(t, 0, -topHalf(t, width, juv), this.outline[n++]);
     }
-
     for (let s = STEPS; s >= 1; s--) {
       const t = (s / STEPS) * BODY_END;
-      outline.push(S(t, 0, BH(t, width)));
+      at(t, 0, botHalf(t, width, juv), this.outline[n++]);
     }
-
-    blob(g, outline);
+    drawBlob(g, this.outline, n);
     g.fill({ color: skin, alpha });
 
     // ---------- 2. Fluke ----------
@@ -116,99 +127,108 @@ export class ProceduralWhaleView implements WhaleView {
       const span = 20 * scale;
       const sweep = 12 * scale;
 
-      const root = S(rootT, 0, 0);
-      const topTip = S(rootT, -sweep, -span);
-      const botTip = S(rootT, -sweep, span);
-      const notch = S(rootT, -sweep * 0.35, 0);
+      const rx = at(rootT, 0, 0, this.w0).x;
+      const ry = this.w0.y;
+      at(rootT, -sweep, -span, this.w0);
+      const topX = this.w0.x;
+      const topY = this.w0.y;
+      at(rootT, -sweep * 0.35, 0, this.w0);
+      const notchX = this.w0.x;
+      const notchY = this.w0.y;
+      at(rootT, -sweep, span, this.w0);
+      const botX = this.w0.x;
+      const botY = this.w0.y;
 
-      g.moveTo(root.x, root.y);
-      g.quadraticCurveTo(...xy(W(rootT, 2, -span * 0.45)), topTip.x, topTip.y);
-      g.quadraticCurveTo(
-        ...xy(W(rootT, -sweep * 0.7, -span * 0.25)),
-        notch.x,
-        notch.y,
-      );
-      g.quadraticCurveTo(
-        ...xy(W(rootT, -sweep * 0.7, span * 0.25)),
-        botTip.x,
-        botTip.y,
-      );
-      g.quadraticCurveTo(...xy(W(rootT, 2, span * 0.45)), root.x, root.y);
+      g.moveTo(rx, ry);
+      at(rootT, 2, -span * 0.45, this.w0);
+      g.quadraticCurveTo(this.w0.x, this.w0.y, topX, topY);
+      at(rootT, -sweep * 0.7, -span * 0.25, this.w0);
+      g.quadraticCurveTo(this.w0.x, this.w0.y, notchX, notchY);
+      at(rootT, -sweep * 0.7, span * 0.25, this.w0);
+      g.quadraticCurveTo(this.w0.x, this.w0.y, botX, botY);
+      at(rootT, 2, span * 0.45, this.w0);
+      g.quadraticCurveTo(this.w0.x, this.w0.y, rx, ry);
       g.closePath();
       g.fill({ color: finSkin, alpha });
     }
 
-    // ---------- 3. Pale Belly Countershading ----------
+    // ---------- 3. Pale belly countershading ----------
     {
-      const pale: Vec2[] = [];
       const lo = 0.02;
       const hi = BODY_END - 0.1;
+      let m = 0;
       for (let s = 0; s <= STEPS; s++) {
         const t = lo + (s / STEPS) * (hi - lo);
-        pale.push(S(t, 0, BH(t, width) * 0.98));
+        at(t, 0, botHalf(t, width, juv) * 0.98, this.pale[m++]);
       }
       for (let s = STEPS; s >= 0; s--) {
         const t = lo + (s / STEPS) * (hi - lo);
-        // Pulled the white belly back up! It now covers about 50% to 70% of the lower half
-        const up = BH(t, width) * (0.45 - 0.2 * smoothstep(0.1, 0.4, t));
-        pale.push(S(t, 0, up));
+        const up =
+          botHalf(t, width, juv) * (0.45 - 0.2 * smoothstep(0.1, 0.4, t));
+        at(t, 0, up, this.pale[m++]);
       }
-      blob(g, pale);
+      drawBlob(g, this.pale, m);
       g.fill({ color: belly, alpha: alpha * 0.88 });
     }
 
-    // ---------- 4. Pectoral Flipper ----------
+    // ---------- 4. Pectoral flipper ----------
     if (detail > 0.02) {
       const t = 0.25;
-      const bh = BH(t, width);
-      // Wide chord at the root (fwd +10 .. -16) tapering to a blunt paddle tip,
-      // so the flipper reads as a limb rather than a hair.
-      const rootFront = S(t, 10, bh * 0.05);
-      const rootBack = S(t, -16, bh * 0.42);
-      const tipFront = S(t, -20, bh * 1.32);
-      const tipBack = S(t, -34, bh * 1.5);
+      const bf = botHalf(t, width, juv);
+      // wide chord at the root tapering to a blunt paddle tip — reads as a limb
+      const rfX = at(t, 10, bf * 0.05, this.w0).x;
+      const rfY = this.w0.y;
+      const rbX = at(t, -16, bf * 0.42, this.w0).x;
+      const rbY = this.w0.y;
+      const tfX = at(t, -20, bf * 1.32, this.w0).x;
+      const tfY = this.w0.y;
+      const tbX = at(t, -34, bf * 1.5, this.w0).x;
+      const tbY = this.w0.y;
 
-      g.moveTo(rootFront.x, rootFront.y);
-      // leading edge
-      g.quadraticCurveTo(...xy(W(t, -4, bh * 0.9)), tipFront.x, tipFront.y);
-      // blunt rounded tip
-      g.quadraticCurveTo(...xy(W(t, -30, bh * 1.62)), tipBack.x, tipBack.y);
-      // trailing edge sweeping back to the base
-      g.quadraticCurveTo(...xy(W(t, -22, bh * 0.98)), rootBack.x, rootBack.y);
-      // root fillet
-      g.quadraticCurveTo(...xy(W(t, -1, bh * 0.16)), rootFront.x, rootFront.y);
+      g.moveTo(rfX, rfY);
+      at(t, -4, bf * 0.9, this.w0); // leading edge
+      g.quadraticCurveTo(this.w0.x, this.w0.y, tfX, tfY);
+      at(t, -30, bf * 1.62, this.w0); // blunt tip
+      g.quadraticCurveTo(this.w0.x, this.w0.y, tbX, tbY);
+      at(t, -22, bf * 0.98, this.w0); // trailing edge
+      g.quadraticCurveTo(this.w0.x, this.w0.y, rbX, rbY);
+      at(t, -1, bf * 0.16, this.w0); // root fillet
+      g.quadraticCurveTo(this.w0.x, this.w0.y, rfX, rfY);
       g.closePath();
       g.fill({ color: darkSkin, alpha: alpha * detail });
     }
 
-    // ---------- 5. Tiny Dorsal Fin ----------
+    // ---------- 5. Tiny dorsal fin ----------
     {
       const t = 0.75;
-      const r0 = S(t - 0.02, 0, -TH(t - 0.02, width));
-      const r1 = S(t + 0.02, 0, -TH(t + 0.02, width));
-      const peak = S(t + 0.01, -3, -(TH(t, width) + 4));
-
-      g.moveTo(r0.x, r0.y);
-      g.quadraticCurveTo(peak.x, peak.y, r1.x, r1.y);
+      const r0X = at(t - 0.02, 0, -topHalf(t - 0.02, width, juv), this.w0).x;
+      const r0Y = this.w0.y;
+      const r1X = at(t + 0.02, 0, -topHalf(t + 0.02, width, juv), this.w0).x;
+      const r1Y = this.w0.y;
+      at(t + 0.01, -3, -(topHalf(t, width, juv) + 4), this.w0);
+      g.moveTo(r0X, r0Y);
+      g.quadraticCurveTo(this.w0.x, this.w0.y, r1X, r1Y);
       g.closePath();
       g.fill({ color: finSkin, alpha });
     }
 
-    // ---------- 6. Eye & Throat Jaw Line ----------
+    // ---------- 6. Eye & throat jaw line ----------
     if (faceDetail > 0.02) {
-      const snout = S(0.01, 0, BH(0.01, width) * 0.15);
-      const jaw = S(0.2, -2, BH(0.2, width) * 0.25);
-
-      g.moveTo(snout.x, snout.y);
-      g.quadraticCurveTo(...xy(W(0.1, 0, BH(0.1, width) * 0.25)), jaw.x, jaw.y);
+      const snoutX = at(0.01, 0, botHalf(0.01, width, juv) * 0.15, this.w0).x;
+      const snoutY = this.w0.y;
+      const jawX = at(0.2, -2, botHalf(0.2, width, juv) * 0.25, this.w0).x;
+      const jawY = this.w0.y;
+      g.moveTo(snoutX, snoutY);
+      at(0.1, 0, botHalf(0.1, width, juv) * 0.25, this.w0);
+      g.quadraticCurveTo(this.w0.x, this.w0.y, jawX, jawY);
       g.stroke({
         width: Math.max(0.8, 1.2 * px),
         color: mixColor(skin, 0x000000, 0.4),
         alpha: alpha * 0.5 * faceDetail,
       });
 
-      const eye = S(0.15, -1, -TH(0.15, width) * 0.05);
-      g.circle(eye.x, eye.y, Math.max(1.2, 1.8 * px));
+      at(0.15, -1, -topHalf(0.15, width, juv) * 0.05, this.w0);
+      g.circle(this.w0.x, this.w0.y, Math.max(1.2, 1.8 * px));
       g.fill({ color: 0x05090d, alpha: alpha * faceDetail });
     }
   }

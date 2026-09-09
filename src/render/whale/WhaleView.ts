@@ -24,5 +24,10 @@ export interface WhaleDrawOptions {
 
 export interface WhaleView {
   /** draw one whale into `g`; `spine` is the undulating display chain */
-  draw(g: Graphics, spine: Vec2[], opts: WhaleDrawOptions, cam: Camera): void;
+  draw(
+    g: Graphics,
+    spine: ReadonlyArray<Vec2>,
+    opts: WhaleDrawOptions,
+    cam: Camera,
+  ): void;
 }

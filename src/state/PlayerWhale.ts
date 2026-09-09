@@ -13,6 +13,13 @@ export class PlayerWhale {
   wag = 0;
   /** 0..1 surge momentum, written by WhaleMovementSystem */
   surge = 0;
+
+  /** breach somersault: `spin` is the accumulated body rotation (radians),
+   * `spinVel` its angular speed, `spinBlend` 0..1 how much the rigid spun pose
+   * overrides the normal swimming spine. All 0 unless mid-breach. */
+  spin = 0;
+  spinVel = 0;
+  spinBlend = 0;
   strokeAmp = 0;
   breath = 100;
   energy = 100;
