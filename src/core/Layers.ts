@@ -11,6 +11,7 @@ export const LAYER_ORDER = [
   "surface",
   "shafts",
   "snow",
+  "terrainFar",
   "terrain",
   "coral",
   "fish",
@@ -36,6 +37,8 @@ export class Layers {
   readonly surface = new Graphics();
   readonly shafts = new Graphics();
   readonly snow = new Graphics();
+  /** distant seabed ridge, scrolled at a parallax fraction behind `terrain` */
+  readonly terrainFar = new Graphics();
   readonly terrain = new Graphics();
   readonly coral = new Graphics();
   readonly fish = new Graphics();
@@ -72,6 +75,7 @@ export class Layers {
       this.surface,
       this.shafts,
       this.snow,
+      this.terrainFar,
       this.terrain,
       this.coral,
       this.fish,
