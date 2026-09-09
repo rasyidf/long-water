@@ -11,7 +11,7 @@ import { makeChain } from "../core/SpineChain";
 import type { PodState } from "./Pod";
 
 const KEY = "long-water:save";
-const VERSION = 1;
+const VERSION = 2; // bumped: shallow-water terrain pass moved the seabed
 
 interface SaveData {
   v: number;
@@ -189,6 +189,7 @@ export function load(ctx: GameContext): boolean {
       if (store.fish[j]) Object.assign(store.fish[j], f);
     });
     store.lit = 0;
+    store.shelter = 0;
   });
 
   data.ships.forEach((s, i) => {

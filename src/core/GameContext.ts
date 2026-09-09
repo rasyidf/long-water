@@ -13,7 +13,7 @@ import type { Input } from "./Input";
 import type { Layers } from "./Layers";
 import type { Rng } from "./rng";
 
-import type { KrillStore, SchoolStore } from "../state/Fauna";
+import type { CoralStore, KrillStore, SchoolStore } from "../state/Fauna";
 import type { ParticleStore, ShipStore, SongField } from "../state/Hazards";
 import type { Pod } from "../state/Pod";
 import type { PlayerWhale } from "../state/PlayerWhale";
@@ -33,6 +33,7 @@ export interface GameContext {
   readonly pod: Pod;
   readonly krill: KrillStore;
   readonly schools: SchoolStore;
+  readonly coral: CoralStore;
   readonly ships: ShipStore;
   readonly song: SongField;
   readonly particles: ParticleStore;

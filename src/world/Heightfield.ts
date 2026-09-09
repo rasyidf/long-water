@@ -51,8 +51,10 @@ export class Heightfield {
             src[i + 2]) /
           16;
     }
+    // a shallow floor so the shelf and seamount peaks can reach the sunlit
+    // zone (coral, reef fish) — but never so shallow the whale beaches
     for (let i = 0; i < NCOL; i++)
-      this.floorY[i] = Math.max(700, this.floorY[i]);
+      this.floorY[i] = Math.max(200, this.floorY[i]);
   }
 
   floorAt(x: number): number {

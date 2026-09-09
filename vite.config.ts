@@ -6,4 +6,13 @@ export default defineConfig({
     port: 8080,
     open: true,
   },
+  build: {
+    rollupOptions: {
+      // paths are resolved from the project root
+      input: {
+        main: "index.html", // the game
+        preview: "preview.html", // a static object gallery for renderer tweaks
+      },
+    },
+  },
 });

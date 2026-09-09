@@ -15,11 +15,11 @@ export interface Tile {
 }
 
 export const TILES: Tile[] = [
-  { name: "shelf", depth: [850, 1150], rough: 0.25, weight: 2.2 },
+  { name: "shelf", depth: [420, 900], rough: 0.3, weight: 2.2 },
   { name: "slope", depth: [1500, 2700], rough: 0.55, weight: 1.7 },
   { name: "plain", depth: [2950, 3250], rough: 0.2, weight: 3.0 },
   { name: "ridge", depth: [2000, 2500], rough: 1.0, weight: 1.1 },
-  { name: "seamount", depth: [950, 1500], rough: 1.3, weight: 0.8 },
+  { name: "seamount", depth: [620, 1500], rough: 1.3, weight: 0.8 },
   { name: "canyon", depth: [3350, 3900], rough: 0.85, weight: 0.9 },
   { name: "trench", depth: [4100, 4600], rough: 0.45, weight: 0.5 },
 ];

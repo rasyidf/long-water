@@ -39,6 +39,24 @@ export interface School {
   fish: Fish[];
   lit: number;
   ph: number;
+  /** reef schools shelter in a coral cluster when the whale bears down; the
+   *  home anchor is the reef centre. Undefined for open-water schools. */
+  homeX?: number;
+  homeY?: number;
+  /** 0..1 how deeply the school has taken cover right now */
+  shelter: number;
+}
+
+/** A static coral growth anchored to the seabed on the shallow shelf. */
+export interface Coral {
+  x: number;
+  /** seabed y the coral is rooted at */
+  y: number;
+  /** 0 sea fan | 1 staghorn | 2 brain mound */
+  kind: number;
+  scale: number;
+  /** sway phase */
+  ph: number;
 }
 
 export class KrillStore {
@@ -47,4 +65,8 @@ export class KrillStore {
 
 export class SchoolStore {
   readonly schools: School[] = [];
+}
+
+export class CoralStore {
+  readonly items: Coral[] = [];
 }

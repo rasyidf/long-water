@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+    <title>Long Water / object gallery</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        background: #02040a;
+        overflow: hidden;
+      }
+      /* centre the fixed-size canvas so screenshots frame the same box every time */
+      #pixi-container {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 100vw;
+        height: 100vh;
+      }
+      #pixi-container canvas {
+        display: block;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div id="pixi-container"></div>
+    <script type="module" src="/src/preview.ts"></script>
+  </body>
+</html>

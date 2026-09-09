@@ -12,6 +12,7 @@ export const LAYER_ORDER = [
   "shafts",
   "snow",
   "terrain",
+  "coral",
   "fish",
   "krill",
   "whales",
@@ -36,6 +37,7 @@ export class Layers {
   readonly shafts = new Graphics();
   readonly snow = new Graphics();
   readonly terrain = new Graphics();
+  readonly coral = new Graphics();
   readonly fish = new Graphics();
   readonly krill = new Graphics();
   readonly whales = new Graphics();
@@ -71,6 +73,7 @@ export class Layers {
       this.shafts,
       this.snow,
       this.terrain,
+      this.coral,
       this.fish,
       this.krill,
       this.whales,

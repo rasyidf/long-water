@@ -27,6 +27,8 @@ export const C = {
   song: 0x9fe8d5,
   krill: 0xff9c5b,
   silver: 0xa9c2c8,
+  coral: 0xff6f6b,
+  coralGlow: 0xffb279,
   skin: 0x1d3040,
   belly: 0xc9d8d4,
   wildSkin: 0x6ba7b6,

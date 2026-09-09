@@ -6,12 +6,17 @@
 import { Application } from "pixi.js";
 
 import { DEFAULT_SEED, C } from "../config/constants";
-import { KrillStore, SchoolStore } from "../state/Fauna";
+import { CoralStore, KrillStore, SchoolStore } from "../state/Fauna";
 import { ParticleStore, ShipStore, SongField } from "../state/Hazards";
 import { Pod } from "../state/Pod";
 import { PlayerWhale } from "../state/PlayerWhale";
 import { RunStats } from "../state/RunStats";
 import { Heightfield } from "../world/Heightfield";
+import {
+  buildPreviewScene,
+  PREVIEW_SIZE,
+  type PreviewFraming,
+} from "../world/PreviewScene";
 import { spawnWorld } from "../world/WorldSpawner";
 
 import { Camera } from "./Camera";
@@ -29,6 +34,7 @@ import { FeedingSystem } from "../systems/FeedingSystem";
 import { KrillSystem } from "../systems/KrillSystem";
 import { ParticleSystem } from "../systems/ParticleSystem";
 import { PodSystem } from "../systems/PodSystem";
+import { PreviewDirector } from "../systems/PreviewDirector";
 import { SchoolSystem } from "../systems/SchoolSystem";
 import { ShipSystem } from "../systems/ShipSystem";
 import { SongSystem } from "../systems/SongSystem";
@@ -37,6 +43,7 @@ import { VitalsSystem } from "../systems/VitalsSystem";
 import { WhaleMovementSystem } from "../systems/WhaleMovementSystem";
 
 import { BackgroundRenderer } from "../render/BackgroundRenderer";
+import { CoralRenderer } from "../render/CoralRenderer";
 import { FaunaRenderer } from "../render/FaunaRenderer";
 import { GlowRenderer } from "../render/GlowRenderer";
 import { ShipRenderer } from "../render/ShipRenderer";
@@ -61,9 +68,16 @@ export class Game {
   private clock = new Clock();
   private pauseMenu = new PauseMenu();
 
-  async boot(mount: HTMLElement): Promise<void> {
+  async boot(
+    mount: HTMLElement,
+    opts: { preview?: boolean } = {},
+  ): Promise<void> {
+    const preview = opts.preview ?? false;
+
     await this.app.init({
-      resizeTo: window,
+      ...(preview
+        ? { width: PREVIEW_SIZE.w, height: PREVIEW_SIZE.h }
+        : { resizeTo: window }),
       antialias: true,
       background: C.abyss,
       resolution: Math.min(window.devicePixelRatio || 1, 2),
@@ -77,9 +91,13 @@ export class Game {
     const pod = new Pod();
     const krill = new KrillStore();
     const schools = new SchoolStore();
+    const coral = new CoralStore();
     const ships = new ShipStore();
     const particles = new ParticleStore();
-    spawnWorld(rng, world, { krill, schools, pod, ships, particles });
+    const stores = { krill, schools, coral, pod, ships, particles };
+    let framing: PreviewFraming | null = null;
+    if (preview) framing = buildPreviewScene(rng, world, whale, stores);
+    else spawnWorld(rng, world, stores);
 
     const camera = new Camera();
     camera.x = whale.x;
@@ -101,6 +119,7 @@ export class Game {
       pod,
       krill,
       schools,
+      coral,
       ships,
       song: new SongField(),
       particles,
@@ -109,6 +128,31 @@ export class Game {
     };
 
     this.app.stage.addChild(layers.world, layers.overlay);
+
+    if (preview && framing) {
+      // gallery: only the animate-in-place systems + every renderer
+      this.systems = [
+        new SpineSystem(),
+        new SongSystem(),
+        new KrillSystem(),
+        new SchoolSystem(),
+        new ParticleSystem(),
+        new PreviewDirector(framing),
+
+        new BackgroundRenderer(),
+        new TerrainRenderer(),
+        new CoralRenderer(),
+        new FaunaRenderer(),
+        new WhaleRenderer(),
+        new ShipRenderer(),
+        new GlowRenderer(),
+      ];
+      for (const s of this.systems) s.init?.(this.ctx);
+      this.clock.markStarted();
+      this.ctx.running = true;
+      requestAnimationFrame(this.frame);
+      return;
+    }
 
     // order matters: input/physics -> reactions -> spine -> camera -> renderers -> hud
     this.systems = [
@@ -127,6 +171,7 @@ export class Game {
 
       new BackgroundRenderer(),
       new TerrainRenderer(),
+      new CoralRenderer(),
       new FaunaRenderer(),
       new WhaleRenderer(),
       new ShipRenderer(),

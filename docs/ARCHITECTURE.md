@@ -295,7 +295,7 @@ communicate through one typed event bus.
 ```ts
 interface GameContext {
   app; bus; rng; clock; camera; input; layers; world;   // services
-  whale; pod; krill; schools; ships; song; particles; stats;  // stores
+  whale; pod; krill; schools; coral; ships; song; particles; stats;  // stores
   running: boolean;
 }
 ```
@@ -321,13 +321,14 @@ HUD/FX: `hint:show {text,secs}`, `fx:shake`, `fx:bubbles`.
 | `SongSystem` | ✓ | The whole sonar mechanic: emit rings, propagate them, light what they sweep, schedule pod replies, decay the lit-seabed accumulator. |
 | `PodSystem` | ✓ | Pod state machine and follower steering (wake anchor + leader-velocity match + catch-up + separation + seabed/surface avoidance + ship-dive + hunger detour). |
 | `KrillSystem` | ✓ | Swarm rotation, diel vertical migration, balling-up under threat. Only steps swarms near the camera. |
-| `SchoolSystem` | ✓ | Fish boids (cohesion/alignment/separation + whale avoidance). Cosmetic — not food. |
+| `SchoolSystem` | ✓ | Fish boids (cohesion/alignment/separation + whale avoidance). Cosmetic — not food. Reef schools (with a coral `home`) take cover in the coral as the whale nears and spill out again after. |
 | `ShipSystem` | ✓ | Advances ships along the lane. Noise footprint is read by `PodSystem`. |
 | `ParticleSystem` | ✓ | Bubble pool; integrates and culls. Listens for `fx:bubbles`. |
 | `SpineSystem` | ✓ | After the player has moved: push the wake trail, tail-chase the backbone, apply the swimming undulation. |
 | `CameraSystem` | ✓ | Lazy follow with velocity lead; zoom out with speed; decay screen shake. |
 | `BackgroundRenderer` | render | Water column, sky, god-rays, marine snow, caustics, depth vignette, animated waterline. |
 | `TerrainRenderer` | render | Seabed spline + lit rim. |
+| `CoralRenderer` | render | Static coral growths on the shallow shelf/seamounts; ambient-lit, brightened by a sonar sweep. |
 | `FaunaRenderer` | render | Krill dots and fish darts (ambient-lit). |
 | `WhaleRenderer` | render | Every whale, via a `WhaleView`; whale-adjacent bubbles. |
 | `ShipRenderer` | render | Hulls + faint noise footprint. |
@@ -352,7 +353,10 @@ Plain classes, mutated in place by systems, serialized by `Snapshot`.
 - **`Pod`** — `PodWhale[]` with `state`, formation `slot`, `stress`, `hunger`,
   reply timers, and lazily-created spine chains. `followers()` helper.
 - **`Fauna`** — `KrillStore` (`Swarm[]`: position, `baseY`, radius, `amount`
-  0–100, `parts[]`, `panic`, `lit`) and `SchoolStore` (`School[]` of `Fish`).
+  0–100, `parts[]`, `panic`, `lit`), `SchoolStore` (`School[]` of `Fish`; reef
+  schools also carry a `homeX/homeY` coral anchor and a `shelter` 0–1), and
+  `CoralStore` (`Coral[]`: rooted position, `kind`, `scale`, sway phase — fully
+  static, regenerated from the seed, never serialized).
 - **`Hazards`** — `ShipStore`, `SongField` (`Ping[]`), `ParticleStore`
   (bubbles + marine snow).
 - **`RunStats`** — end-card tally + one-shot hint latches (`once(key)`).
@@ -374,7 +378,9 @@ Plain classes, mutated in place by systems, serialized by `Snapshot`.
 3. **`WorldSpawner.ts`** — fills the stores from the heightfield + rng: krill
    over upwelling (not on rock, below the light line), fish schools, one pod
    whale near the start plus a scattered line down the route, ships only in
-   x ∈ [60 000, 92 000], and the marine-snow field. Blocks are independent.
+   x ∈ [60 000, 92 000], the marine-snow field, and coral patches on shallow
+   shelf/seamount rock (each patch mostly hosting a sheltering reef school).
+   Blocks are independent.
 
 Scale: `UNIT_M = 0.1` (1 unit = 10 cm). `WORLD_W = 120 000` (12 km). Whale
 length 280 (28 m). Light: `DARK_START` 900 (90 m) → `DARK_FULL` 1800 (180 m).
@@ -382,8 +388,8 @@ length 280 (28 m). Light: `DARK_START` 900 (90 m) → `DARK_FULL` 1800 (180 m).
 ## 7. Rendering
 
 - **Layers** (`core/Layers.ts`), back to front: `sky, water, surface, shafts,
-  snow, terrain, fish, krill, whales, ships, caustics, darkness (fill + grad),
-  glow`; a screen-space `overlay` holds the vignette. Screen shake is applied to
+  snow, terrain, coral, fish, krill, whales, ships, caustics, darkness (fill +
+  grad), glow`; a screen-space `overlay` holds the vignette. Screen shake is applied to
   the world container, not per-layer.
 - **Camera** (`core/Camera.ts`) owns the world↔screen transform (`sx`/`sy`),
   lazy-follows with a velocity-based lead, and eases zoom out as speed rises.
@@ -404,6 +410,13 @@ length 280 (28 m). Light: `DARK_START` 900 (90 m) → `DARK_FULL` 1800 (180 m).
   (`core/light.ts`).
 - **Textures** (`render/textures.ts`) bakes CSS gradients into Pixi textures;
   `render/color.ts` blends packed colours.
+- **Object gallery** (`preview.html` → `src/preview.ts` → `Game.boot(mount, {
+  preview: true })`): a second Vite entry that boots the game against a
+  hand-placed scene (`world/PreviewScene.ts`) — one of every renderable entity
+  in a fixed camera frame — with only the animate-in-place systems plus a
+  `PreviewDirector` (pins the camera, pulses a wide sonar ring). Use it to eyeball
+  or screenshot a renderer change without a play-through: `npm run dev` →
+  `http://localhost:8080/preview.html`.
 
 ## 8. HUD (`hud/`)
 

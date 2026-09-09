@@ -5,7 +5,13 @@
  */
 import { DARK_START, WORLD_W } from "../config/constants";
 import type { Rng } from "../core/rng";
-import type { KrillPart, KrillStore, SchoolStore, Swarm } from "../state/Fauna";
+import type {
+  CoralStore,
+  KrillPart,
+  KrillStore,
+  SchoolStore,
+  Swarm,
+} from "../state/Fauna";
 import type { ParticleStore, ShipStore } from "../state/Hazards";
 import type { Pod } from "../state/Pod";
 import { clamp } from "../core/math";
@@ -45,12 +51,13 @@ export function spawnWorld(
   stores: {
     krill: KrillStore;
     schools: SchoolStore;
+    coral: CoralStore;
     pod: Pod;
     ships: ShipStore;
     particles: ParticleStore;
   },
 ): void {
-  const { krill, schools, pod, ships, particles } = stores;
+  const { krill, schools, coral, pod, ships, particles } = stores;
 
   // krill — sits over upwelling, not on rock
   krill.swarms.push(makeSwarm(rng, 2400, 1450, 420));
@@ -81,6 +88,7 @@ export function spawnWorld(
       fish,
       lit: 0,
       ph: rng.next() * 9,
+      shelter: 0,
     });
   }
 
@@ -142,4 +150,55 @@ export function spawnWorld(
       s: rng.range(0.4, 1.6),
       d: rng.range(0.35, 1),
     });
+
+  // coral reefs — patches on the shallow shelf & seamount rock, in the sunlit
+  // zone. Most patches host a school that ducks into the coral when threatened.
+  for (let x = 2000; x < WORLD_W - 2000;) {
+    const t = world.tileNameAt(x);
+    if ((t === "shelf" || t === "seamount") && world.floorAt(x) < 1150) {
+      const count = 2 + ((rng.next() * 4) | 0);
+      let cx = x;
+      for (let k = 0; k < count; k++) {
+        cx += rng.range(60, 200);
+        const cy = world.floorAt(cx);
+        if (cy > 1600) break; // patch ran off the shelf into the deep
+        coral.items.push({
+          x: cx,
+          y: cy,
+          kind: (rng.next() * 3) | 0,
+          scale: rng.range(0.75, 1.7),
+          ph: rng.next() * Math.PI * 2,
+        });
+      }
+      if (rng.next() < 0.6) {
+        const mid = (x + cx) / 2;
+        const homeY = world.floorAt(mid) - rng.range(70, 150);
+        const sy = homeY - rng.range(120, 340);
+        const fish = [];
+        const n = 26 + ((rng.next() * 14) | 0);
+        for (let i = 0; i < n; i++)
+          fish.push({
+            x: mid + rng.range(-190, 190),
+            y: sy + rng.range(-120, 120),
+            vx: rng.range(-30, 30),
+            vy: rng.range(-14, 14),
+          });
+        schools.schools.push({
+          x: mid,
+          y: sy,
+          ax: mid,
+          ay: sy,
+          fish,
+          lit: 0,
+          ph: rng.next() * 9,
+          homeX: mid,
+          homeY,
+          shelter: 0,
+        });
+      }
+      x = cx + rng.range(1600, 4800);
+    } else {
+      x += rng.range(400, 1100);
+    }
+  }
 }
