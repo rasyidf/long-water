@@ -1,6 +1,6 @@
 /** Water column, sky, god-rays, marine snow, caustics and the depth vignette. */
 import { Texture } from "pixi.js";
-import { DARK_FULL, DARK_START } from "../config/constants";
+import { C, DARK_FULL, DARK_START } from "../config/constants";
 import { ZONES, zoneAt } from "../config/zones";
 import { lightAt } from "../core/light";
 import { clamp01 } from "../core/math";
@@ -28,8 +28,8 @@ export class BackgroundRenderer implements System {
     const L = ctx.layers;
     L.sky.texture = gradientTexture(
       [
-        [0, "#141f2b"],
-        [1, "#38646d"],
+        [0, "#21344a"],
+        [1, "#4b8088"],
       ],
       8,
       128,
@@ -56,6 +56,15 @@ export class BackgroundRenderer implements System {
     );
   }
 
+  /** vertical displacement of the water surface at world-x `wx` (world units) */
+  private waveAt(wx: number, t: number): number {
+    return (
+      Math.sin(wx * 0.006 + t * 1.0) * 7 +
+      Math.sin(wx * 0.013 - t * 1.6) * 4 +
+      Math.sin(wx * 0.0021 + t * 0.5) * 11
+    );
+  }
+
   render(ctx: GameContext): void {
     const { camera: cam, layers: L, clock, whale } = ctx;
     const VW = cam.vw;
@@ -71,12 +80,43 @@ export class BackgroundRenderer implements System {
     L.waterSprite.y = y0;
     L.waterSprite.height = Math.max(1, y1 - y0);
 
-    L.sky.visible = y0 > 0;
+    // amplitude grows when the whale is near the surface / just breached
+    const ampWorld =
+      22 * (whale.y < 240 ? 1.45 : 1) + Math.min(30, cam.shake * 1.4);
+    const ampPx = ampWorld * sc;
+
+    const surfaceVisible = y0 > -160 - ampPx && y0 < VH + 80;
+    L.sky.visible = y0 > -ampPx;
     if (L.sky.visible) {
       L.sky.x = 0;
       L.sky.width = VW;
       L.sky.y = 0;
-      L.sky.height = y0;
+      L.sky.height = Math.max(1, y0 + ampPx + 30 * sc); // cover the deepest trough
+    }
+
+    // animated wavy waterline
+    const sf = L.surface;
+    sf.clear();
+    if (surfaceVisible) {
+      const N = 40;
+      const wy = (screenX: number): number => {
+        const wx = cam.x + (screenX - VW / 2) / sc;
+        return y0 + this.waveAt(wx, clock.t) * sc * (ampWorld / 22);
+      };
+      const band = 26 * sc + 200; // deep enough to overlap the water sprite
+      sf.moveTo(-40, wy(-40));
+      for (let i = 0; i <= N; i++)
+        sf.lineTo((i / N) * (VW + 80) - 40, wy((i / N) * (VW + 80) - 40));
+      sf.lineTo(VW + 40, wy(VW + 40) + band);
+      sf.lineTo(-40, wy(-40) + band);
+      sf.closePath();
+      sf.fill({ color: z.shelf, alpha: 0.72 });
+
+      // foam crest
+      sf.moveTo(-40, wy(-40));
+      for (let i = 0; i <= N; i++)
+        sf.lineTo((i / N) * (VW + 80) - 40, wy((i / N) * (VW + 80) - 40));
+      sf.stroke({ width: 1 + 1.6 * sc, color: C.foam, alpha: 0.45 });
     }
 
     // light shafts — fade out smoothly with depth rather than a hard cutoff
@@ -154,6 +194,6 @@ export class BackgroundRenderer implements System {
     L.vignette.y = 0;
     L.vignette.width = VW;
     L.vignette.height = VH;
-    L.vignette.alpha = 0.5 + (1 - lightAt(whale.y)) * 0.4;
+    L.vignette.alpha = 0.32 + (1 - lightAt(whale.y)) * 0.5;
   }
 }

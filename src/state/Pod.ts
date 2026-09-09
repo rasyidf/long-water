@@ -20,6 +20,8 @@ export interface PodWhale {
   /** formation slot while following, else -1 */
   slot: number;
   stress: number;
+  /** 0..1 appetite; a hungry follower diverts to nearby krill */
+  hunger: number;
   nextSong: number;
   ph: number;
   size: number;

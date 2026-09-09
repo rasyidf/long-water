@@ -15,6 +15,8 @@ export interface WhaleDrawOptions {
   skin: number;
   belly: number;
   alpha: number;
+  /** body half-width in world units before `scale` (girth). Defaults per view. */
+  width?: number;
 }
 
 export interface WhaleView {

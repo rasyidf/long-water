@@ -51,6 +51,7 @@ interface SaveData {
     answeredUntil: number;
     slot: number;
     stress: number;
+    hunger: number;
     nextSong: number;
     wag: number;
   }>;
@@ -108,6 +109,7 @@ export function save(ctx: GameContext): boolean {
       answeredUntil: w.answeredUntil,
       slot: w.slot,
       stress: w.stress,
+      hunger: w.hunger,
       nextSong: w.nextSong,
       wag: w.wag,
     })),

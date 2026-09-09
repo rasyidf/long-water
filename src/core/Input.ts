@@ -1,6 +1,8 @@
 /** Keyboard state. Owns nothing gameplay — systems read `pressed()` / axes. */
 export class Input {
   private keys: Record<string, boolean> = {};
+  /** codes whose keydown edge landed since the last frameEnd() */
+  private edges = new Set<string>();
   private onFirstKey?: () => void;
   private onRestart?: () => void;
   private onPause?: () => void;
@@ -28,6 +30,7 @@ export class Input {
       return;
     }
     this.onFirstKey?.();
+    if (!this.keys[e.code] && !e.repeat) this.edges.add(e.code);
     this.keys[e.code] = true;
     if (e.code === "Space") e.preventDefault();
     if (e.code === "KeyR") this.onRestart?.();
@@ -39,6 +42,16 @@ export class Input {
 
   pressed(code: string): boolean {
     return !!this.keys[code];
+  }
+
+  /** true only on the frame the key went down — consume with frameEnd() */
+  justPressed(...codes: string[]): boolean {
+    return codes.some((c) => this.edges.has(c));
+  }
+
+  /** call once per frame after all systems have read input */
+  frameEnd(): void {
+    this.edges.clear();
   }
 
   /** normalized WASD / arrows steering vector */

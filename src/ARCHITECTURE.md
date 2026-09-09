@@ -30,6 +30,9 @@ registration order in `Game.ts` is the run order.
 | Pose | `core/SpineChain.ts` | the IK backbone; the source of truth for whale pose, Spine or not |
 | Whale look | `ProceduralWhaleView` | flat-illustration body: one `profile(t)` + a spine sampler; all parts are offsets in the local frame, so it bends and mirrors for free. Tune shape via `profile`/`BODY_END` |
 | Depth darkness | `BackgroundRenderer` `darkGrad` + `darkFill` | a world-anchored gradient (surface → 180 m) plus a dim fill below it; light shafts fade on the same curve |
+| Water surface | `BackgroundRenderer.waveAt` + `Layers.surface` | a sine-sum waterline redrawn each frame; amplitude rises near the surface / after a breach. The whale also feels a depth-attenuated orbital swell (`WhaleMovementSystem`) |
+| Speed | `WhaleMovementSystem` | hold Shift → `surge` (0..1) ramps thrust + top speed over ~1.6 s; tap Shift → tail-kick impulse (0.85 s cooldown). Edge detection is `Input.justPressed` / `Input.frameEnd` |
+| Pod AI | `PodSystem.stepFollower` | steering blend: wake anchor (depth-clamped to the leader's band) + leader-velocity match + catch-up when far + separation + seabed/surface avoidance + ship-dive + hunger-driven krill detour & feeding. Hard `y` guards stop breaching / clipping the seabed |
 
 ## Adding a mechanic
 

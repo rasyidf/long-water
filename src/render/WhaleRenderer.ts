@@ -34,8 +34,8 @@ export class WhaleRenderer implements System {
               skin: C.wildSkin,
               belly: C.wildBelly,
               alpha: 0.95,
-              width: podWidth, // <--- Custom Pod Width
-            } as any, // 'as any' is safe here if width isn't strictly typed in your interface yet
+              width: podWidth,
+            },
             cam,
           );
         continue;
@@ -54,7 +54,7 @@ export class WhaleRenderer implements System {
             w.y +
             Math.sin(clock.t * 1.1 + w.ph - i * 0.5) * (2 + (i / 15) * 12),
         });
-      
+
       this.view.draw(
         wg,
         sp,
@@ -64,8 +64,8 @@ export class WhaleRenderer implements System {
           skin: C.wildSkin,
           belly: C.wildBelly,
           alpha: Math.min(0.92, v),
-          width: podWidth, // <--- Custom Ambient Pod Width
-        } as any,
+          width: podWidth,
+        },
         cam,
       );
     }
@@ -80,8 +80,8 @@ export class WhaleRenderer implements System {
         skin: C.skin,
         belly: C.belly,
         alpha: 1,
-        width: 38, // <--- Massive, distinct width for the player
-      } as any,
+        width: 38,
+      },
       cam,
     );
 

@@ -175,6 +175,7 @@ export class Game {
     if (ctx.running) {
       for (const s of this.systems) s.update?.(this.clock.dt, ctx);
     }
+    ctx.input.frameEnd();
 
     ctx.camera.vw = this.app.renderer.width / this.app.renderer.resolution;
     ctx.camera.vh = this.app.renderer.height / this.app.renderer.resolution;

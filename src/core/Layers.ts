@@ -8,6 +8,7 @@ import { BlurFilter, Container, Graphics, Sprite } from "pixi.js";
 export const LAYER_ORDER = [
   "sky",
   "water",
+  "surface",
   "shafts",
   "snow",
   "terrain",
@@ -30,6 +31,8 @@ export class Layers {
 
   readonly sky = new Sprite();
   readonly waterSprite = new Sprite();
+  /** animated wavy waterline */
+  readonly surface = new Graphics();
   readonly shafts = new Graphics();
   readonly snow = new Graphics();
   readonly terrain = new Graphics();
@@ -64,6 +67,7 @@ export class Layers {
     this.world.addChild(
       this.sky,
       this.waterSprite,
+      this.surface,
       this.shafts,
       this.snow,
       this.terrain,

@@ -11,6 +11,8 @@ export class PlayerWhale {
   readonly len = 280;
   facing = 1;
   wag = 0;
+  /** 0..1 surge momentum, written by WhaleMovementSystem */
+  surge = 0;
 
   breath = 100;
   energy = 100;
