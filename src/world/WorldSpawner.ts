@@ -92,32 +92,12 @@ export function spawnWorld(
     });
   }
 
-  // pod — one near the start, then scattered down the route
-  pod.add({
-    x: 3400,
-    y: 1000,
-    vx: -10,
-    vy: 0,
-    state: "wild",
-    lit: 0,
-    replyAt: 0,
-    cool: 0,
-    heard: false,
-    answeredUntil: 0,
-    slot: -1,
-    stress: 0,
-    hunger: 0,
-    nextSong: 0,
-    ph: 2.1,
-    size: 0.8,
-    wag: 0,
-    base: null,
-    spine: null,
-  });
-  for (let x = 11_000; x < WORLD_W - 4000; x += rng.range(9000, 15_000)) {
+  // pod — one near the start, then scattered down the route. Adults travel
+  // alone; a calf only appears alongside its mother.
+  const wild = (x: number, y: number, age: number): void => {
     pod.add({
       x,
-      y: rng.range(500, 1700),
+      y,
       vx: rng.range(-30, 10),
       vy: 0,
       state: "wild",
@@ -131,11 +111,24 @@ export function spawnWorld(
       hunger: 0,
       nextSong: 0,
       ph: rng.next() * 9,
-      size: rng.range(0.6, 0.92),
+      size: rng.range(0.9, 1.06),
+      age,
       wag: 0,
       base: null,
       spine: null,
     });
+  };
+
+  wild(3400, 1000, rng.range(0.85, 1));
+  for (let x = 11_000; x < WORLD_W - 4000; x += rng.range(9000, 15_000)) {
+    const y = rng.range(500, 1700);
+    wild(x, y, rng.range(0.8, 1));
+    if (rng.next() < 0.3)
+      wild(
+        x + rng.range(120, 260),
+        y + rng.range(-120, 120),
+        rng.range(0.2, 0.5),
+      );
   }
 
   // ships — only across the shipping lane

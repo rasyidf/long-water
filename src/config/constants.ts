@@ -12,6 +12,11 @@ export const WORLD_W = 120_000;
 export const DARK_START = 900; // 90 m
 export const DARK_FULL = 1800; // 180 m
 
+/** Sun direction as horizontal run per unit of vertical drop: the light sits a
+ * little off vertical, toward +x. God-rays and the shadows surface objects cast
+ * both read from this so they agree on where "up toward the sun" is. */
+export const SUN_LEAN = 0.12;
+
 /** WFC cell width, and heightfield sample spacing, in world units. */
 export const CELL = 1500;
 export const COL = 24;

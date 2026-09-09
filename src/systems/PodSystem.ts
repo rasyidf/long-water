@@ -16,7 +16,7 @@ import {
 } from "../core/SpineChain";
 import type { GameContext } from "../core/GameContext";
 import type { System } from "../core/System";
-import type { PodWhale } from "../state/Pod";
+import { podBodyLen, type PodWhale } from "../state/Pod";
 import type { Swarm } from "../state/Fauna";
 
 export class PodSystem implements System {
@@ -173,7 +173,7 @@ export class PodSystem implements System {
 
     // 2. Drop the minimum speed if the leader is idle and we've reached the anchor.
     // This stops them from aggressively overshooting a stationary target.
-    const minSpeed = feeding ? 40 : (isLeaderIdle && dist < 250 ? 15 : 90);
+    const minSpeed = feeding ? 40 : isLeaderIdle && dist < 250 ? 15 : 90;
     const want = clamp(dist * 1.6, minSpeed, 620);
 
     let vx = (dx / dist) * want + whale.vx * 0.35;
@@ -244,15 +244,16 @@ export class PodSystem implements System {
     // hard guards: never breach, never clip the seabed
     w.y = clamp(w.y, 45, Math.max(60, floorHere - 90));
 
-    // --- body chain ---
+    // --- body chain --- (sized to this whale, not the leader: a calf is shorter)
+    const bodyLen = podBodyLen(w);
     if (!w.base) {
       w.base = [];
       for (let i = 0; i < SPINE_JOINTS; i++)
-        w.base.push(whale.trail.pointBeside(lead + i * (whale.len / 15), side));
+        w.base.push(whale.trail.pointBeside(lead + i * (bodyLen / 15), side));
       w.spine = w.base.map((p) => ({ x: p.x, y: p.y }));
     }
     w.wag += dt * (1.6 + Math.min(want, 500) / 140);
-    chaseChain(w.base, w.x, w.y, whale.len);
+    chaseChain(w.base, w.x, w.y, bodyLen);
     applyUndulation(w.spine!, w.base, w.wag * 2.0, strokeAmpFor(want));
 
     // --- sustained ship noise breaks a whale off ---

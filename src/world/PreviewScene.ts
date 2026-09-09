@@ -84,7 +84,8 @@ function podWhale(over: Partial<PodWhale>): PodWhale {
     hunger: 0,
     nextSong: 0,
     ph: 0,
-    size: 0.85,
+    size: 1,
+    age: 0.95,
     wag: 0,
     base: null,
     spine: null,
@@ -180,6 +181,19 @@ export function buildPreviewScene(
       lit: 0.8,
       ph: 4.2,
       size: 1.05,
+    }),
+  );
+  // a calf beside the wild adult — short, stubby, big-headed
+  pod.add(
+    podWhale({
+      x: 400,
+      y: 610,
+      vx: -8,
+      state: "wild",
+      lit: 0.8,
+      ph: 3.1,
+      size: 1,
+      age: 0.3,
     }),
   );
 

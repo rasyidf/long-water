@@ -17,6 +17,9 @@ export interface WhaleDrawOptions {
   alpha: number;
   /** body half-width in world units before `scale` (girth). Defaults per view. */
   width?: number;
+  /** 0..1 juvenile morph: shorter blunt head, fuller forebody, less tail taper.
+   * 0 (default) is an adult. */
+  juv?: number;
 }
 
 export interface WhaleView {

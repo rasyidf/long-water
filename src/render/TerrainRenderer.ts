@@ -1,5 +1,9 @@
 /** The seabed: a spline through the smoothed heightfield, plus a lit rim where
- * ambient light or a recent sonar sweep reaches it. */
+ * ambient light or a recent sonar sweep reaches it.
+ *
+ * Columns outside the generated range are clamped to the first/last sample, so
+ * the floor reads as a flat continuation off either end of the route rather
+ * than dropping to a hard vertical edge. */
 import { COL, C, NCOL } from "../config/constants";
 import { lightAt } from "../core/light";
 import type { GameContext } from "../core/GameContext";
@@ -13,35 +17,38 @@ export class TerrainRenderer implements System {
     const VH = cam.vh;
     const sc = cam.scale;
     const [left, right] = cam.visibleX(300);
-    const c0 = Math.max(0, Math.floor(left / COL));
-    const c1 = Math.min(NCOL - 1, Math.ceil(right / COL));
+    const first = Math.floor(left / COL);
+    const last = Math.ceil(right / COL);
 
     const tg = L.terrain;
     tg.clear();
-    if (c1 <= c0 + 2) return;
+    if (last <= first + 2) return;
 
     const f = world.floorY;
-    tg.moveTo(cam.sx(c0 * COL), VH + 40);
-    tg.lineTo(cam.sx(c0 * COL), cam.sy(f[c0]));
-    for (let c = c0; c < c1 - 1; c++) {
+    const at = (c: number): number =>
+      f[c < 0 ? 0 : c > NCOL - 1 ? NCOL - 1 : c];
+
+    tg.moveTo(cam.sx(first * COL), VH + 40);
+    tg.lineTo(cam.sx(first * COL), cam.sy(at(first)));
+    for (let c = first; c < last - 1; c++) {
       const mx = (c * COL + (c + 1) * COL) / 2;
-      const my = (f[c] + f[c + 1]) / 2;
+      const my = (at(c) + at(c + 1)) / 2;
       tg.quadraticCurveTo(
         cam.sx(c * COL),
-        cam.sy(f[c]),
+        cam.sy(at(c)),
         cam.sx(mx),
         cam.sy(my),
       );
     }
-    tg.lineTo(cam.sx(c1 * COL), cam.sy(f[c1]));
-    tg.lineTo(cam.sx(c1 * COL), VH + 40);
+    tg.lineTo(cam.sx(last * COL), cam.sy(at(last)));
+    tg.lineTo(cam.sx(last * COL), VH + 40);
     tg.closePath();
     tg.fill({ color: C.rock });
 
-    for (let c = c0; c < c1; c++) {
-      const amb = lightAt(f[c]) * 0.9;
+    for (let c = first; c < last; c++) {
+      const amb = lightAt(at(c)) * 0.9;
       if (amb < 0.05) continue;
-      tg.rect(cam.sx(c * COL) - 1, cam.sy(f[c]) - 2, COL * sc + 2, 3);
+      tg.rect(cam.sx(c * COL) - 1, cam.sy(at(c)) - 2, COL * sc + 2, 3);
       tg.fill({ color: C.rockLit, alpha: amb });
     }
   }

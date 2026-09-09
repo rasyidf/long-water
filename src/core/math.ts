@@ -18,6 +18,16 @@ export function smoothstep(a: number, b: number, x: number): number {
   return t * t * (3 - 2 * t);
 }
 
+/** Deterministic pseudo-random in [0,1) from an integer key. Stable per key, so
+ * it's safe to derive per-object visual jitter (shaft width, drift phase…). */
+export function hash01(n: number): number {
+  let h = (n | 0) ^ 0x9e3779b9;
+  h = Math.imul(h ^ (h >>> 16), 0x21f0aaad);
+  h = Math.imul(h ^ (h >>> 15), 0x735a2d97);
+  h ^= h >>> 15;
+  return (h >>> 0) / 4294967296;
+}
+
 export interface Vec2 {
   x: number;
   y: number;

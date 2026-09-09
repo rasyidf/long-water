@@ -1,12 +1,20 @@
 /** Water column, sky, god-rays, marine snow, caustics and the depth vignette. */
 import { Texture } from "pixi.js";
-import { C, DARK_FULL, DARK_START } from "../config/constants";
+import { C, DARK_FULL, DARK_START, SUN_LEAN } from "../config/constants";
 import { ZONES, zoneAt } from "../config/zones";
 import { lightAt } from "../core/light";
-import { clamp01 } from "../core/math";
+import { clamp01, hash01 } from "../core/math";
 import type { GameContext } from "../core/GameContext";
 import type { System } from "../core/System";
 import { gradientTexture, hex } from "./textures";
+
+/** brightness of a light shaft along its length (0..1 of its own length):
+ * ramps in just under the surface, then eases to zero at the bottom. */
+function shaftProfile(t: number): number {
+  const up = clamp01(t / 0.16);
+  const down = 1 - clamp01((t - 0.16) / 0.84);
+  return up * down * down;
+}
 
 export class BackgroundRenderer implements System {
   readonly name = "render:background";
@@ -17,8 +25,10 @@ export class BackgroundRenderer implements System {
       this.waterTex[z.id] = gradientTexture(
         [
           [0, hex(z.shelf)],
-          [0.28, hex(z.deep)],
-          [0.56, "#050d16"],
+          [0.16, hex(z.shelf)],
+          [0.4, hex(z.deep)],
+          [0.62, "#050d16"],
+          [0.82, "#03080f"],
           [1, "#02040a"],
         ],
         8,
@@ -44,12 +54,19 @@ export class BackgroundRenderer implements System {
       512,
       true,
     );
-    // surface → light-line darkness gradient, sampled in world space each frame
+    // surface → deep darkness, sampled in world space each frame. Stops are
+    // eased so the slope approaches zero at the bottom: without that the
+    // gradient-then-flat-fill join reads as a hard horizontal band (a Mach
+    // edge) instead of a continuous fade from shallow to mid to deep water.
     L.darkGrad.texture = gradientTexture(
       [
-        [0, "rgba(3,6,13,0)"],
-        [0.5, "rgba(3,6,13,0.28)"],
-        [1, "rgba(2,4,10,0.62)"],
+        [0, "rgba(3,7,14,0)"],
+        [0.14, "rgba(3,7,14,0.04)"],
+        [0.34, "rgba(3,7,13,0.16)"],
+        [0.56, "rgba(3,6,12,0.34)"],
+        [0.76, "rgba(2,5,11,0.5)"],
+        [0.9, "rgba(2,4,10,0.59)"],
+        [1, "rgba(2,4,10,0.64)"],
       ],
       8,
       512,
@@ -103,14 +120,22 @@ export class BackgroundRenderer implements System {
         const wx = cam.x + (screenX - VW / 2) / sc;
         return y0 + this.waveAt(wx, clock.t) * sc * (ampWorld / 22);
       };
-      const band = 26 * sc + 200; // deep enough to overlap the water sprite
-      sf.moveTo(-40, wy(-40));
-      for (let i = 0; i <= N; i++)
-        sf.lineTo((i / N) * (VW + 80) - 40, wy((i / N) * (VW + 80) - 40));
-      sf.lineTo(VW + 40, wy(VW + 40) + band);
-      sf.lineTo(-40, wy(-40) + band);
-      sf.closePath();
-      sf.fill({ color: z.shelf, alpha: 0.72 });
+      // sunlit near-surface layer — stacked slabs so its lower edge dissolves
+      // into the water column instead of ending on a hard line
+      const slabs: ReadonlyArray<readonly [number, number]> = [
+        [40 * sc, 0.5],
+        [130 * sc + 90, 0.26],
+        [260 * sc + 220, 0.12],
+      ];
+      for (const [band, a] of slabs) {
+        sf.moveTo(-40, wy(-40));
+        for (let i = 0; i <= N; i++)
+          sf.lineTo((i / N) * (VW + 80) - 40, wy((i / N) * (VW + 80) - 40));
+        sf.lineTo(VW + 40, wy(VW + 40) + band);
+        sf.lineTo(-40, wy(-40) + band);
+        sf.closePath();
+        sf.fill({ color: z.shelf, alpha: a });
+      }
 
       // foam crest
       sf.moveTo(-40, wy(-40));
@@ -119,24 +144,52 @@ export class BackgroundRenderer implements System {
       sf.stroke({ width: 1 + 1.6 * sc, color: C.foam, alpha: 0.45 });
     }
 
-    // light shafts — fade out smoothly with depth rather than a hard cutoff
+    // light shafts — sunlight from above, angled slightly off vertical. Each
+    // shaft draws its width, drift, length and intensity from a hash of its
+    // world index, so the field never reads as one stamp repeated across the
+    // screen; and every shaft is split into segments whose alpha follows
+    // `shaftProfile`, fading in under the surface and tapering to nothing with
+    // depth rather than ending on a flat edge.
     const g = L.shafts;
     g.clear();
     const shaftK = clamp01(1 - whale.y / (DARK_START * 2.6));
     if (y0 < VH && shaftK > 0.02) {
-      const step = 620;
-      for (let k = -2; k < 9; k++) {
-        const wx = Math.floor(cam.x / step) * step + k * step;
-        const px = cam.sx(wx + Math.sin(clock.t * 0.25 + wx * 0.001) * 70);
-        const h = 1600 * sc;
-        const top = 26 * sc;
-        const bot = 150 * sc;
-        g.moveTo(px - top, y0);
-        g.lineTo(px + top, y0);
-        g.lineTo(px + bot + 90 * sc, y0 + h);
-        g.lineTo(px - bot + 90 * sc, y0 + h);
-        g.closePath();
-        g.fill({ color: 0x78d6c8, alpha: 0.055 * shaftK });
+      const step = 540;
+      const halfW = VW / 2 / sc;
+      const i0 = Math.floor((cam.x - halfW) / step) - 1;
+      const i1 = Math.ceil((cam.x + halfW) / step) + 1;
+      for (let i = i0; i <= i1; i++) {
+        const r = hash01(i);
+        const r2 = hash01(i * 2 + 101);
+        const r3 = hash01(i * 3 + 977);
+        const wx = i * step + (r - 0.5) * step * 0.8;
+        const drift =
+          Math.sin(clock.t * (0.14 + r2 * 0.22) + i * 1.7) * (30 + r3 * 55);
+        const x0 = cam.sx(wx) + drift * sc;
+        const topW = (10 + r * 30) * sc;
+        const len = (1100 + r3 * 1000) * sc;
+        const lean = SUN_LEAN * len * (0.7 + r2 * 0.6);
+        const peak = (0.028 + r * 0.05) * shaftK;
+        const SEG = 6;
+        for (let s = 0; s < SEG; s++) {
+          const ta = s / SEG;
+          const tb = (s + 1) / SEG;
+          const xa = x0 + lean * ta;
+          const xb = x0 + lean * tb;
+          const wa = topW * (1 + ta * 2.6);
+          const wb = topW * (1 + tb * 2.6);
+          const ya = y0 + len * ta;
+          const yb = y0 + len * tb;
+          g.moveTo(xa - wa, ya);
+          g.lineTo(xa + wa, ya);
+          g.lineTo(xb + wb, yb);
+          g.lineTo(xb - wb, yb);
+          g.closePath();
+          g.fill({
+            color: 0x78d6c8,
+            alpha: peak * (shaftProfile(ta) + shaftProfile(tb)) * 0.5,
+          });
+        }
       }
     }
 
@@ -172,22 +225,24 @@ export class BackgroundRenderer implements System {
       }
     }
 
-    // depth darkness: gradient from the surface line down to the light line,
-    // then a flat fill below it (dim, not opaque — silhouettes still read)
+    // depth darkness: one world-anchored gradient from the surface down well
+    // past the light line, then a flat fill only far below — where the eased
+    // gradient tail has already flattened onto the fill's colour, so the
+    // shallow→mid→deep fade stays continuous instead of stepping at a line.
     const dTop = cam.sy(0);
-    const dEnd = cam.sy(DARK_FULL);
+    const dBot = cam.sy(DARK_FULL * 1.5);
     L.darkGrad.x = 0;
     L.darkGrad.width = VW;
     L.darkGrad.y = dTop;
-    L.darkGrad.height = Math.max(1, dEnd - dTop);
-    L.darkGrad.visible = dEnd > 0 && dTop < VH;
+    L.darkGrad.height = Math.max(1, dBot - dTop);
+    L.darkGrad.visible = dBot > 0 && dTop < VH;
 
     const df = L.darkFill;
     df.clear();
-    if (dEnd < VH) {
-      const y = Math.max(0, dEnd);
+    if (dBot < VH) {
+      const y = Math.max(0, dBot);
       df.rect(0, y, VW, VH - y);
-      df.fill({ color: 0x02040a, alpha: 0.62 });
+      df.fill({ color: 0x02040a, alpha: 0.64 });
     }
 
     L.vignette.x = 0;

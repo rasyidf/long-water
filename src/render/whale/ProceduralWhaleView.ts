@@ -6,21 +6,24 @@ import type { WhaleDrawOptions, WhaleView } from "./WhaleView";
 
 const BODY_END = 0.94;
 
-/** Authentic Blue Whale body proportions */
-function profile(t: number, w: number): number {
-  // Smooth blunt head
-  const head = Math.pow(clamp01(t / 0.16), 0.45);
+/** Authentic Blue Whale body proportions. `juv` 0..1 morphs toward a calf:
+ * the head takes up more of the body and is blunter, the forebody stays full,
+ * and the tail tapers less. */
+function profile(t: number, w: number, juv = 0): number {
+  // Blunt head — shorter and rounder on a calf
+  const head = Math.pow(clamp01(t / (0.16 + juv * 0.08)), 0.45 - juv * 0.16);
   // Holds the main girth longer through the body so they don't look thin
-  const midGirth = 1.0 - 0.35 * smoothstep(0.35, BODY_END, t);
+  const midGirth = 1.0 - (0.35 - juv * 0.16) * smoothstep(0.35, BODY_END, t);
   // Stronger tail section
-  const peduncle = Math.pow(1 - clamp01(t / BODY_END), 0.6);
+  const peduncle = Math.pow(1 - clamp01(t / BODY_END), 0.6 - juv * 0.14);
 
-  return w * head * midGirth * Math.max(0.12, peduncle);
+  return w * head * midGirth * Math.max(0.12 + juv * 0.05, peduncle);
 }
 
-const topHalf = (t: number, w: number): number => profile(t, w) * 0.42;
-const botHalf = (t: number, w: number): number =>
-  profile(t, w) * (0.58 + 0.15 * smoothstep(0.5, 0.1, t));
+const topHalf = (t: number, w: number, juv = 0): number =>
+  profile(t, w, juv) * 0.42;
+const botHalf = (t: number, w: number, juv = 0): number =>
+  profile(t, w, juv) * (0.58 + 0.15 * smoothstep(0.5, 0.1, t));
 
 function blob(g: Graphics, pts: Vec2[]): void {
   const n = pts.length;
@@ -40,12 +43,19 @@ export class ProceduralWhaleView implements WhaleView {
   draw(g: Graphics, sp: Vec2[], opts: WhaleDrawOptions, cam: Camera): void {
     const { scale, facing, skin, belly, alpha } = opts;
     const width = opts.width ?? 48;
+    const juv = clamp01(opts.juv ?? 0);
+    const TH = (t: number, w: number): number => topHalf(t, w, juv);
+    const BH = (t: number, w: number): number => botHalf(t, w, juv);
 
     const last = sp.length - 1;
     if (last < 1) return;
 
     const px = scale * cam.scale;
-    const fine = px > 0.35;
+    // 0..1 detail factor: ramps in smoothly so fins and face don't pop on/off
+    // as the camera scale drifts across a hard threshold. Full detail well
+    // before normal play zoom; only a genuinely tiny far whale drops it.
+    const detail = smoothstep(0.08, 0.26, px);
+    const faceDetail = smoothstep(0.3, 0.6, px);
 
     const frame = (t: number): { p: Vec2; f: Vec2; per: Vec2 } => {
       const u = clamp01(t) * last;
@@ -83,18 +93,18 @@ export class ProceduralWhaleView implements WhaleView {
     const outline: Vec2[] = [];
 
     // Smooth rounded nose
-    outline.push(S(0.01, 0, -topHalf(0.01, width)));
+    outline.push(S(0.01, 0, -TH(0.01, width)));
     outline.push(S(0, 1, 0));
-    outline.push(S(0.01, 0, botHalf(0.01, width)));
+    outline.push(S(0.01, 0, BH(0.01, width)));
 
     for (let s = 1; s <= STEPS; s++) {
       const t = (s / STEPS) * BODY_END;
-      outline.push(S(t, 0, -topHalf(t, width)));
+      outline.push(S(t, 0, -TH(t, width)));
     }
 
     for (let s = STEPS; s >= 1; s--) {
       const t = (s / STEPS) * BODY_END;
-      outline.push(S(t, 0, botHalf(t, width)));
+      outline.push(S(t, 0, BH(t, width)));
     }
 
     blob(g, outline);
@@ -135,12 +145,12 @@ export class ProceduralWhaleView implements WhaleView {
       const hi = BODY_END - 0.1;
       for (let s = 0; s <= STEPS; s++) {
         const t = lo + (s / STEPS) * (hi - lo);
-        pale.push(S(t, 0, botHalf(t, width) * 0.98));
+        pale.push(S(t, 0, BH(t, width) * 0.98));
       }
       for (let s = STEPS; s >= 0; s--) {
         const t = lo + (s / STEPS) * (hi - lo);
         // Pulled the white belly back up! It now covers about 50% to 70% of the lower half
-        const up = botHalf(t, width) * (0.45 - 0.2 * smoothstep(0.1, 0.4, t));
+        const up = BH(t, width) * (0.45 - 0.2 * smoothstep(0.1, 0.4, t));
         pale.push(S(t, 0, up));
       }
       blob(g, pale);
@@ -148,36 +158,35 @@ export class ProceduralWhaleView implements WhaleView {
     }
 
     // ---------- 4. Pectoral Flipper ----------
-    if (fine) {
-      const t = 0.24;
-      // Fixed: Replaced a single 'root' with a wide base (front and back) to give it thickness
-      const rootFront = S(t, 4, botHalf(t, width) * 0.1);
-      const rootBack = S(t, -10, botHalf(t, width) * 0.35);
-      const tip = S(t, -28, botHalf(t, width) * 1.5);
+    if (detail > 0.02) {
+      const t = 0.25;
+      const bh = BH(t, width);
+      // Wide chord at the root (fwd +10 .. -16) tapering to a blunt paddle tip,
+      // so the flipper reads as a limb rather than a hair.
+      const rootFront = S(t, 10, bh * 0.05);
+      const rootBack = S(t, -16, bh * 0.42);
+      const tipFront = S(t, -20, bh * 1.32);
+      const tipBack = S(t, -34, bh * 1.5);
 
       g.moveTo(rootFront.x, rootFront.y);
-      // Leading edge curve
-      g.quadraticCurveTo(
-        ...xy(W(t, -10, botHalf(t, width) * 1.1)),
-        tip.x,
-        tip.y,
-      );
-      // Trailing edge curve sweeping back to the wide base
-      g.quadraticCurveTo(
-        ...xy(W(t, -20, botHalf(t, width) * 0.8)),
-        rootBack.x,
-        rootBack.y,
-      );
+      // leading edge
+      g.quadraticCurveTo(...xy(W(t, -4, bh * 0.9)), tipFront.x, tipFront.y);
+      // blunt rounded tip
+      g.quadraticCurveTo(...xy(W(t, -30, bh * 1.62)), tipBack.x, tipBack.y);
+      // trailing edge sweeping back to the base
+      g.quadraticCurveTo(...xy(W(t, -22, bh * 0.98)), rootBack.x, rootBack.y);
+      // root fillet
+      g.quadraticCurveTo(...xy(W(t, -1, bh * 0.16)), rootFront.x, rootFront.y);
       g.closePath();
-      g.fill({ color: darkSkin, alpha });
+      g.fill({ color: darkSkin, alpha: alpha * detail });
     }
 
     // ---------- 5. Tiny Dorsal Fin ----------
     {
       const t = 0.75;
-      const r0 = S(t - 0.02, 0, -topHalf(t - 0.02, width));
-      const r1 = S(t + 0.02, 0, -topHalf(t + 0.02, width));
-      const peak = S(t + 0.01, -3, -(topHalf(t, width) + 4));
+      const r0 = S(t - 0.02, 0, -TH(t - 0.02, width));
+      const r1 = S(t + 0.02, 0, -TH(t + 0.02, width));
+      const peak = S(t + 0.01, -3, -(TH(t, width) + 4));
 
       g.moveTo(r0.x, r0.y);
       g.quadraticCurveTo(peak.x, peak.y, r1.x, r1.y);
@@ -186,25 +195,21 @@ export class ProceduralWhaleView implements WhaleView {
     }
 
     // ---------- 6. Eye & Throat Jaw Line ----------
-    if (fine) {
-      const snout = S(0.01, 0, botHalf(0.01, width) * 0.15);
-      const jaw = S(0.2, -2, botHalf(0.2, width) * 0.25);
+    if (faceDetail > 0.02) {
+      const snout = S(0.01, 0, BH(0.01, width) * 0.15);
+      const jaw = S(0.2, -2, BH(0.2, width) * 0.25);
 
       g.moveTo(snout.x, snout.y);
-      g.quadraticCurveTo(
-        ...xy(W(0.1, 0, botHalf(0.1, width) * 0.25)),
-        jaw.x,
-        jaw.y,
-      );
+      g.quadraticCurveTo(...xy(W(0.1, 0, BH(0.1, width) * 0.25)), jaw.x, jaw.y);
       g.stroke({
         width: Math.max(0.8, 1.2 * px),
         color: mixColor(skin, 0x000000, 0.4),
-        alpha: alpha * 0.5,
+        alpha: alpha * 0.5 * faceDetail,
       });
 
-      const eye = S(0.15, -1, -topHalf(0.15, width) * 0.05);
+      const eye = S(0.15, -1, -TH(0.15, width) * 0.05);
       g.circle(eye.x, eye.y, Math.max(1.2, 1.8 * px));
-      g.fill({ color: 0x05090d, alpha });
+      g.fill({ color: 0x05090d, alpha: alpha * faceDetail });
     }
   }
 }

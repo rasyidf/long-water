@@ -2,7 +2,8 @@
  * body drawing to a swappable `WhaleView`. */
 import { C } from "../config/constants";
 import { lightAt } from "../core/light";
-import type { Vec2 } from "../core/math";
+import { clamp01, type Vec2 } from "../core/math";
+import { podBodyLen, podGirth } from "../state/Pod";
 import type { GameContext } from "../core/GameContext";
 import type { System } from "../core/System";
 import { ProceduralWhaleView } from "./whale/ProceduralWhaleView";
@@ -19,9 +20,14 @@ export class WhaleRenderer implements System {
     wg.clear();
 
     for (const w of pod.whales) {
-      // Deterministic variation: uses the whale's phase (w.ph) to give it a unique thickness.
-      // Varies smoothly between 22 (sleek) and 34 (chunky).
-      const podWidth = 28 + Math.sin(w.ph || 0) * 6;
+      // Body length and proportions come from the whale's own maturity/size, not
+      // the leader's — a calf is genuinely shorter and stubbier, never the same
+      // length drawn thin. `drawScale` scales girth and fins to match the body
+      // so the aspect stays constant across sizes.
+      const bodyLen = podBodyLen(w);
+      const drawScale = bodyLen / 280;
+      const girth = podGirth(w);
+      const juv = clamp01(1 - w.age);
 
       if (w.state === "following") {
         if (w.spine)
@@ -29,12 +35,13 @@ export class WhaleRenderer implements System {
             wg,
             w.spine,
             {
-              scale: w.size * 0.9,
+              scale: drawScale,
               facing: 1,
               skin: C.wildSkin,
               belly: C.wildBelly,
               alpha: 0.95,
-              width: podWidth,
+              width: girth,
+              juv,
             },
             cam,
           );
@@ -46,10 +53,11 @@ export class WhaleRenderer implements System {
         w.state === "answered" ? 0.45 : 0,
       );
       if (v < 0.05 || Math.abs(w.x - cam.x) > 6000) continue;
+      const step = bodyLen / 15;
       const sp: Vec2[] = [];
       for (let i = 0; i < 16; i++)
         sp.push({
-          x: w.x - i * 16 * w.size,
+          x: w.x - i * step,
           y:
             w.y +
             Math.sin(clock.t * 1.1 + w.ph - i * 0.5) * (2 + (i / 15) * 12),
@@ -59,12 +67,13 @@ export class WhaleRenderer implements System {
         wg,
         sp,
         {
-          scale: w.size * 0.85,
+          scale: drawScale,
           facing: 1,
           skin: C.wildSkin,
           belly: C.wildBelly,
           alpha: Math.min(0.92, v),
-          width: podWidth,
+          width: girth,
+          juv,
         },
         cam,
       );
