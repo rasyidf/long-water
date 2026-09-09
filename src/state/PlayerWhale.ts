@@ -14,9 +14,10 @@ export class PlayerWhale {
   /** 0..1 surge momentum, written by WhaleMovementSystem */
   surge = 0;
 
-  /** breach somersault: `spin` is the accumulated body rotation (radians),
-   * `spinVel` its angular speed, `spinBlend` 0..1 how much the rigid spun pose
-   * overrides the normal swimming spine. All 0 unless mid-breach. */
+  /** breach barrel roll (rotation about the long/nose-tail axis, faked in the
+   * side view): `spin` is the accumulated roll angle in radians, `spinVel` its
+   * speed, `spinBlend` 0..1 how strongly the roll distortion is applied. All 0
+   * unless mid-breach. */
   spin = 0;
   spinVel = 0;
   spinBlend = 0;

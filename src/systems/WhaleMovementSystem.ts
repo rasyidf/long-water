@@ -17,6 +17,10 @@ import type { System } from "../core/System";
 
 const REST_Y = 70; // depth a drifting whale settles to — it does not bob out
 
+/** upward speed at the surface needed to trigger an airborne barrel roll */
+const BREACH_SPIN_VY = 470;
+const GRAVITY = 1400;
+
 export class WhaleMovementSystem implements System {
   readonly name = "whale-movement";
 
@@ -27,6 +31,9 @@ export class WhaleMovementSystem implements System {
     ctx.bus.on("game:restart", () => {
       this.surgeCharge = 0;
       this.kickCooldown = 0;
+      ctx.whale.spin = 0;
+      ctx.whale.spinVel = 0;
+      ctx.whale.spinBlend = 0;
     });
   }
 
@@ -115,11 +122,11 @@ export class WhaleMovementSystem implements System {
 
       if (move.x === 0 && move.y === 0 && !surging) {
         // Gently pull the vertical velocity toward 0 so the whale levels out
-        whale.vy *= (1 - 0.8 * dt);
+        whale.vy *= 1 - 0.8 * dt;
       }
     } else {
       const apexFactor = Math.abs(whale.vy) < 200 ? 0.75 : 1.0;
-      whale.vy += 1400 * apexFactor * dt;
+      whale.vy += GRAVITY * apexFactor * dt;
     }
 
     const wasUnder = whale.y > 0;
@@ -141,6 +148,26 @@ export class WhaleMovementSystem implements System {
         impactVy: whale.vy,
         pos: { x: whale.x, y: whale.y },
       });
+
+      // breach barrel roll — launch fast enough and the whale rolls about its
+      // long axis through a whole number of turns (belly to camera, then back),
+      // timed to come round level as it re-enters
+      const launch = -whale.vy; // upward speed, positive
+      if (
+        launch > BREACH_SPIN_VY &&
+        whale.spinVel === 0 &&
+        whale.spinBlend < 0.01
+      ) {
+        const airT = (2 * launch) / GRAVITY;
+        const turns = Math.max(
+          1,
+          Math.min(3, Math.round((launch - 250) / 300)),
+        );
+        whale.spin = 0;
+        whale.spinVel = (turns * Math.PI * 2) / airT; // + = belly toward camera first
+        bus.emit("fx:shake", 6);
+        bus.emit("whale:breach", { flips: turns, pos: { x: whale.x, y: 0 } });
+      }
     }
     if (!wasUnder && whale.y > 0) {
       bus.emit("fx:shake", 10);
@@ -170,6 +197,21 @@ export class WhaleMovementSystem implements System {
       whale.facing += (want - whale.facing) * Math.min(1, dt * 3);
     }
     whale.wag += dt * (1.6 + Math.min(whale.speed, 500) / 140);
+
+    // breach barrel roll: roll freely while airborne, then ease the effect out
+    // once the whale is back in the water
+    if (whale.y <= 0 && whale.spinVel !== 0) {
+      whale.spin += whale.spinVel * dt;
+      whale.spinBlend = Math.min(1, whale.spinBlend + dt / 0.1);
+    } else if (whale.spinBlend > 0) {
+      whale.spin += whale.spinVel * dt;
+      whale.spinVel *= Math.max(0, 1 - 6 * dt);
+      whale.spinBlend = Math.max(0, whale.spinBlend - dt / 0.3);
+      if (whale.spinBlend === 0) {
+        whale.spin = 0;
+        whale.spinVel = 0;
+      }
+    }
 
     // wake streak while driving hard
     if (surging && whale.speed > 230 && Math.random() < 0.35) {

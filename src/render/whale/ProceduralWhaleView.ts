@@ -78,6 +78,24 @@ export class ProceduralWhaleView implements WhaleView {
       Math.min(MAX_STEPS, Math.round(20 + 20 * detail)),
     );
 
+    // --- barrel roll about the long axis, faked in the side view -------------
+    // `roll` is the roll angle; `rk` eases the whole effect in/out. All the
+    // drivers below collapse to "no effect" at rk = 0, so a level whale (and
+    // every pod whale) renders exactly as before.
+    const roll = opts.roll ?? 0;
+    const rk = clamp01(opts.rollK ?? (opts.roll != null ? 1 : 0));
+    const cs = Math.cos(roll);
+    const sn = Math.sin(roll);
+    // signed "how much the dorsal-ventral axis still faces the camera": 1 level,
+    // 0 edge-on (90°), -1 rolled fully over (180°). Flips the fins to the far side.
+    const cr = 1 + (cs - 1) * rk;
+    // cross-section foreshortening as the body turns edge-on (a whale's girth
+    // is ≈ 0.85 of its dorsal-ventral height, so the silhouette barely narrows)
+    const foreK = 1 - 0.15 * Math.abs(sn) * rk;
+    const bellyCam = Math.max(0, sn) * rk; // belly rotating toward the camera
+    const backCam = Math.max(0, -sn) * rk; // dorsal/back rotating toward the camera
+    const flipped = Math.max(0, -cs) * rk; // near 1 around a half roll (belly up)
+
     // --- spine frame + point projection, writing into pre-allocated vectors ---
     const frameAt = (t: number): void => {
       const u = clamp01(t) * last;
@@ -102,29 +120,32 @@ export class ProceduralWhaleView implements WhaleView {
       return out;
     };
 
+    const th = (t: number): number => topHalf(t, width, juv);
+    const bh = (t: number): number => botHalf(t, width, juv);
+
     const darkSkin = mixColor(skin, 0x000000, 0.28);
     const finSkin = mixColor(skin, 0x000000, 0.18);
 
     // ---------- 1. Main body hull ----------
     let n = 0;
-    at(0.01, 0, -topHalf(0.01, width, juv), this.outline[n++]);
+    at(0.01, 0, -th(0.01) * foreK, this.outline[n++]);
     at(0, 1, 0, this.outline[n++]);
-    at(0.01, 0, botHalf(0.01, width, juv), this.outline[n++]);
+    at(0.01, 0, bh(0.01) * foreK, this.outline[n++]);
     for (let s = 1; s <= STEPS; s++) {
       const t = (s / STEPS) * BODY_END;
-      at(t, 0, -topHalf(t, width, juv), this.outline[n++]);
+      at(t, 0, -th(t) * foreK, this.outline[n++]);
     }
     for (let s = STEPS; s >= 1; s--) {
       const t = (s / STEPS) * BODY_END;
-      at(t, 0, botHalf(t, width, juv), this.outline[n++]);
+      at(t, 0, bh(t) * foreK, this.outline[n++]);
     }
     drawBlob(g, this.outline, n);
-    g.fill({ color: skin, alpha });
+    g.fill({ color: mixColor(skin, 0x000000, 0.14 * backCam), alpha });
 
     // ---------- 2. Fluke ----------
     {
       const rootT = BODY_END;
-      const span = 20 * scale;
+      const span = 20 * scale * foreK;
       const sweep = 12 * scale;
 
       const rx = at(rootT, 0, 0, this.w0).x;
@@ -153,29 +174,51 @@ export class ProceduralWhaleView implements WhaleView {
     }
 
     // ---------- 3. Pale belly countershading ----------
+    // The patch normally hugs the lower flank. As the whale rolls belly-to-
+    // camera it spreads to cover the whole visible body; past a half roll it
+    // sits on the *upper* flank (belly is up); as the back comes round it fades
+    // out and the dark hull shows instead.
     {
       const lo = 0.02;
       const hi = BODY_END - 0.1;
+      const spread = Math.max(bellyCam, flipped);
+      const bandTop = (t: number): number => {
+        const inner = bh(t) * (0.45 - 0.2 * smoothstep(0.1, 0.4, t));
+        return inner + (-th(t) - inner) * spread;
+      };
+      const bandBot = (t: number): number => {
+        const inner = bh(t) * (0.45 - 0.2 * smoothstep(0.1, 0.4, t));
+        const outer = bh(t) * 0.98;
+        return outer + (-inner - outer) * flipped;
+      };
       let m = 0;
       for (let s = 0; s <= STEPS; s++) {
         const t = lo + (s / STEPS) * (hi - lo);
-        at(t, 0, botHalf(t, width, juv) * 0.98, this.pale[m++]);
+        const tp = bandTop(t);
+        const bt = bandBot(t);
+        const mid = (tp + bt) * 0.5;
+        at(t, 0, (mid + (bt - mid) * (1 - backCam)) * foreK, this.pale[m++]);
       }
       for (let s = STEPS; s >= 0; s--) {
         const t = lo + (s / STEPS) * (hi - lo);
-        const up =
-          botHalf(t, width, juv) * (0.45 - 0.2 * smoothstep(0.1, 0.4, t));
-        at(t, 0, up, this.pale[m++]);
+        const tp = bandTop(t);
+        const bt = bandBot(t);
+        const mid = (tp + bt) * 0.5;
+        at(t, 0, (mid + (tp - mid) * (1 - backCam)) * foreK, this.pale[m++]);
       }
       drawBlob(g, this.pale, m);
-      g.fill({ color: belly, alpha: alpha * 0.88 });
+      const ba = Math.min(
+        1,
+        alpha * 0.88 * (1 - backCam) * (1 + 0.5 * bellyCam),
+      );
+      g.fill({ color: belly, alpha: ba });
     }
 
     // ---------- 4. Pectoral flipper ----------
-    if (detail > 0.02) {
+    if (detail > 0.02 && Math.abs(cr) > 0.04) {
       const t = 0.25;
-      const bf = botHalf(t, width, juv);
-      // wide chord at the root tapering to a blunt paddle tip — reads as a limb
+      // signed girth — flips to the dorsal side once the whale rolls past 90°
+      const bf = bh(t) * cr * foreK;
       const rfX = at(t, 10, bf * 0.05, this.w0).x;
       const rfY = this.w0.y;
       const rbX = at(t, -16, bf * 0.42, this.w0).x;
@@ -195,41 +238,52 @@ export class ProceduralWhaleView implements WhaleView {
       at(t, -1, bf * 0.16, this.w0); // root fillet
       g.quadraticCurveTo(this.w0.x, this.w0.y, rfX, rfY);
       g.closePath();
-      g.fill({ color: darkSkin, alpha: alpha * detail });
+      g.fill({
+        color: darkSkin,
+        alpha: alpha * detail * Math.max(0.15, Math.abs(cr)),
+      });
     }
 
     // ---------- 5. Tiny dorsal fin ----------
     {
       const t = 0.75;
-      const r0X = at(t - 0.02, 0, -topHalf(t - 0.02, width, juv), this.w0).x;
+      const k = cr * foreK; // points up level, edge-on at 90°, down when inverted
+      const r0X = at(t - 0.02, 0, -th(t - 0.02) * k, this.w0).x;
       const r0Y = this.w0.y;
-      const r1X = at(t + 0.02, 0, -topHalf(t + 0.02, width, juv), this.w0).x;
+      const r1X = at(t + 0.02, 0, -th(t + 0.02) * k, this.w0).x;
       const r1Y = this.w0.y;
-      at(t + 0.01, -3, -(topHalf(t, width, juv) + 4), this.w0);
+      at(t + 0.01, -3, -(th(t) + 4) * k, this.w0);
       g.moveTo(r0X, r0Y);
       g.quadraticCurveTo(this.w0.x, this.w0.y, r1X, r1Y);
       g.closePath();
-      g.fill({ color: finSkin, alpha });
+      g.fill({
+        color: finSkin,
+        alpha: alpha * Math.min(1, Math.abs(cr) + 0.1),
+      });
     }
 
     // ---------- 6. Eye & throat jaw line ----------
-    if (faceDetail > 0.02) {
-      const snoutX = at(0.01, 0, botHalf(0.01, width, juv) * 0.15, this.w0).x;
+    // both live on the near flank — gone once the whale rolls its belly or
+    // back to the camera
+    if (faceDetail > 0.02 && cr > 0.05) {
+      const ek = cr * foreK;
+      const fk = faceDetail * clamp01(cr);
+      const snoutX = at(0.01, 0, bh(0.01) * 0.15 * ek, this.w0).x;
       const snoutY = this.w0.y;
-      const jawX = at(0.2, -2, botHalf(0.2, width, juv) * 0.25, this.w0).x;
+      const jawX = at(0.2, -2, bh(0.2) * 0.25 * ek, this.w0).x;
       const jawY = this.w0.y;
       g.moveTo(snoutX, snoutY);
-      at(0.1, 0, botHalf(0.1, width, juv) * 0.25, this.w0);
+      at(0.1, 0, bh(0.1) * 0.25 * ek, this.w0);
       g.quadraticCurveTo(this.w0.x, this.w0.y, jawX, jawY);
       g.stroke({
         width: Math.max(0.8, 1.2 * px),
         color: mixColor(skin, 0x000000, 0.4),
-        alpha: alpha * 0.5 * faceDetail,
+        alpha: alpha * 0.5 * fk,
       });
 
-      at(0.15, -1, -topHalf(0.15, width, juv) * 0.05, this.w0);
+      at(0.15, -1, -th(0.15) * 0.05 * ek, this.w0);
       g.circle(this.w0.x, this.w0.y, Math.max(1.2, 1.8 * px));
-      g.fill({ color: 0x05090d, alpha: alpha * faceDetail });
+      g.fill({ color: 0x05090d, alpha: alpha * fk });
     }
   }
 }

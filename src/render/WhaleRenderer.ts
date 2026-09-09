@@ -90,6 +90,8 @@ export class WhaleRenderer implements System {
         belly: C.belly,
         alpha: 1,
         width: 38,
+        roll: whale.spin,
+        rollK: whale.spinBlend,
       },
       cam,
     );

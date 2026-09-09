@@ -20,6 +20,12 @@ export interface WhaleDrawOptions {
   /** 0..1 juvenile morph: shorter blunt head, fuller forebody, less tail taper.
    * 0 (default) is an adult. */
   juv?: number;
+  /** barrel-roll angle in radians about the long axis (faked in the side view):
+   * girth squashes, the belly patch / dorsal fin / flipper swing to the other
+   * side as it passes 90°. 0 (default) is level. */
+  roll?: number;
+  /** 0..1 strength of the `roll` distortion, for easing it in and out. */
+  rollK?: number;
 }
 
 export interface WhaleView {
