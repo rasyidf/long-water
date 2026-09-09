@@ -1,39 +1,43 @@
-/** The player whale: rigid state, plus its spine chains and wake trail. */
+/** The player whale: its shared movement `body`, wake trail, and the resource
+ * state (breath/energy) that the vitals/feeding systems own. */
 import type { Vec2 } from "../core/math";
-import { makeChain } from "../core/SpineChain";
 import { Trail } from "./Trail";
+import { WhaleBody } from "./WhaleBody";
 
 export class PlayerWhale {
-  x = 700;
-  y = 700;
-  vx = 90;
-  vy = 0;
-  readonly len = 280;
-  facing = 1;
-  wag = 0;
-  /** 0..1 surge momentum, written by WhaleMovementSystem */
-  surge = 0;
+  /** movement + pose state, stepped by the shared locomotion/pose code */
+  readonly body = new WhaleBody(700, 700, 280, 90, 0);
+  /** the swum path — pod whales steer off points sampled from it */
+  readonly trail = new Trail(700, 700);
 
-  /** breach barrel roll (rotation about the long/nose-tail axis, faked in the
-   * side view): `spin` is the accumulated roll angle in radians, `spinVel` its
-   * speed, `spinBlend` 0..1 how strongly the roll distortion is applied. All 0
-   * unless mid-breach. */
-  spin = 0;
-  spinVel = 0;
-  spinBlend = 0;
-  strokeAmp = 0;
+  /** 0..1 surge momentum, written by the player brain */
+  surge = 0;
   breath = 100;
   energy = 100;
   drowning = 0;
   alive = true;
   done = false;
 
-  /** rigid backbone and its undulating display copy */
-  readonly spineBase: Vec2[] = makeChain(this.x, this.y);
-  readonly spine: Vec2[] = makeChain(this.x, this.y);
-  readonly trail = new Trail(this.x, this.y);
-
+  /** read-only facades so non-movement systems keep reading `whale.x` etc. */
+  get x(): number {
+    return this.body.x;
+  }
+  get y(): number {
+    return this.body.y;
+  }
+  get vx(): number {
+    return this.body.vx;
+  }
+  get vy(): number {
+    return this.body.vy;
+  }
+  get facing(): number {
+    return this.body.facing;
+  }
   get speed(): number {
-    return Math.hypot(this.vx, this.vy);
+    return this.body.speed;
+  }
+  get spine(): Vec2[] {
+    return this.body.spine;
   }
 }

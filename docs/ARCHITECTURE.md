@@ -255,7 +255,8 @@ clock.tick(now)                         // dt clamped to 50 ms
   or while paused — so `update` stops but `render` keeps drawing the frozen
   frame.
 - **Registration order in `Game.ts` is execution order.** Current order: input/
-  physics → reactions → spine → camera → renderers → HUD.
+  physics → reactions → camera → renderers → HUD. `WhaleSystem` runs first and
+  moves *and* poses every whale (player + pod) in one pass.
 
 ### System interface (`core/System.ts`)
 
@@ -284,7 +285,8 @@ communicate through one typed event bus.
 | State | `state/*` | Plain data classes ("stores"), one per entity kind. No behaviour. |
 | World gen | `world/*` | `Heightfield` (static seabed) + `WorldSpawner` (fills the stores). |
 | Scene graph | `core/Layers.ts` | One named Pixi layer per visual concern; draw order is the `LAYER_ORDER` array. A renderer owns its layer and touches no other. |
-| Whale pose | `core/SpineChain.ts` | The joint-chain backbone; the source of truth for every whale's pose. |
+| Whale movement | `state/WhaleBody.ts` + `systems/whale/*` | `WhaleBody` (position/velocity/facing/roll/spine) is owned by the player and every pod whale. `locomotion.ts` integrates a body from an `Intent`; `PlayerBrain` / `PodBrain` produce the intent; `WhaleSystem` runs the pipeline. |
+| Whale pose | `core/SpineChain.ts` + `systems/whale/pose.ts` | The joint-chain backbone; the source of truth for every whale's pose. `stepPose` (was `SpineSystem`) advances it for every whale. |
 | Whale body | `render/whale/WhaleView.ts` | Interface for *drawing* a whale from its pose. `ProceduralWhaleView` is the implementation; swap it without touching simulation. |
 | User-facing copy | `i18n/en.ts` + `i18n/index.ts` | Every HUD/card string goes through `t(key, params)`. `en.ts` is the source of truth. |
 | Leg distance | `config/route.ts` | `LEG` owns start/finish/zones; helpers feed the HUD, the win line, and the end card. |
@@ -315,16 +317,15 @@ HUD/FX: `hint:show {text,secs}`, `fx:shake`, `fx:bubbles`.
 | System | update | Responsibility |
 |---|---|---|
 | `AudioSystem` | – | Owns the WebAudio graph. Ambient bed on `game:start`; renders `audio:call`; suspends on pause. |
-| `WhaleMovementSystem` | ✓ | Player locomotion: thrust, surge/kick momentum, buoyancy, drag, turn-rate cap, terrain collision, surface crossings. Emits FX events. |
+| `WhaleSystem` | ✓ | Moves **and** poses every whale (player + pod) in one pass: `PlayerBrain`/`PodBrain` → `stepLocomotion` → `stepPose`. Emits the surface/breach FX. `simulate: false` (preview) poses only. |
 | `VitalsSystem` | ✓ | Breath, reserves, drowning, drafting discount, and the two run-ending checks (`energy ≤ 0`, `x ≥ world.finishX`). |
 | `FeedingSystem` | ✓ | Lunge-feeding: while surging, converts nearby krill into reserves. |
 | `SongSystem` | ✓ | The whole sonar mechanic: emit rings, propagate them, light what they sweep, schedule pod replies, decay the lit-seabed accumulator. |
-| `PodSystem` | ✓ | Pod state machine and follower steering (wake anchor + leader-velocity match + catch-up + separation + seabed/surface avoidance + ship-dive + hunger detour). |
+| `PodSystem` | ✓ | Pod *social* state machine only: answered→following recruit, answered/lost timeouts, a follower's periodic call. Steering lives in `systems/whale/PodBrain.ts` (wake anchor + leader-velocity match + catch-up + separation + seabed/surface springs + ship-dive + hunger/krill foraging + stress break-off). |
 | `KrillSystem` | ✓ | Swarm rotation, diel vertical migration, balling-up under threat. Only steps swarms near the camera. |
 | `SchoolSystem` | ✓ | Fish boids (cohesion/alignment/separation + whale avoidance). Cosmetic — not food. Reef schools (with a coral `home`) take cover in the coral as the whale nears and spill out again after. |
-| `ShipSystem` | ✓ | Advances ships along the lane. Noise footprint is read by `PodSystem`. |
+| `ShipSystem` | ✓ | Advances ships along the lane. Noise footprint is read by `PodBrain`. |
 | `ParticleSystem` | ✓ | Bubble pool; integrates and culls. Listens for `fx:bubbles`. |
-| `SpineSystem` | ✓ | After the player has moved: push the wake trail, tail-chase the backbone, apply the swimming undulation. |
 | `CameraSystem` | ✓ | Lazy follow with velocity lead; zoom out with speed; decay screen shake. |
 | `BackgroundRenderer` | render | Water column, sky, god-rays, marine snow, caustics, depth vignette, animated waterline. |
 | `TerrainRenderer` | render | Seabed spline + lit rim. |
@@ -347,11 +348,15 @@ jitter so that camera culling or frame rate can't perturb the seeded sequence.
 
 Plain classes, mutated in place by systems, serialized by `Snapshot`.
 
-- **`PlayerWhale`** — position/velocity, `facing`, `breath`, `energy`,
-  `drowning`, `alive`, `done`, `surge`, `strokeAmp`; `spineBase` + `spine`
-  joint chains; `trail`.
-- **`Pod`** — `PodWhale[]` with `state`, formation `slot`, `stress`, `hunger`,
-  reply timers, and lazily-created spine chains. `followers()` helper.
+- **`WhaleBody`** — the movement + pose state shared by every whale: `x/y/vx/vy`,
+  `facing`, `wag`, `strokeAmp`, breach `roll`/`rollVel`/`rollBlend`, `len`, and the
+  `spineBase` + `spine` joint chains. Stepped only by `systems/whale/*`.
+- **`PlayerWhale`** — a `body: WhaleBody`, its `trail`, and the resource state
+  (`breath`, `energy`, `drowning`, `alive`, `done`, `surge`). Read-only `x/y/vx/vy/
+  facing/speed/spine` facades forward to `body`.
+- **`Pod`** — `PodWhale[]`; each has a `body: WhaleBody` plus the social fields
+  (`state`, formation `slot`, `stress`, `hunger`, reply timers, `ph/size/age`).
+  `makePodWhale(init)` builds one. `followers()` helper.
 - **`Fauna`** — `KrillStore` (`Swarm[]`: position, `baseY`, radius, `amount`
   0–100, `parts[]`, `panic`, `lit`), `SchoolStore` (`School[]` of `Fish`; reef
   schools also carry a `homeX/homeY` coral anchor and a `shelter` 0–1), and
@@ -397,8 +402,8 @@ length 280 (28 m). Light: `DARK_START` 900 (90 m) → `DARK_FULL` 1800 (180 m).
   constrains the rigid backbone to fixed segment lengths with a bending-
   relaxation pass. `applyUndulation` writes a *display* copy with the swimming
   wave layered on (amplitude from `strokeAmpFor(speed)`, interpolated) — the
-  wave is never fed back into the rigid chain. Shared verbatim by the player
-  whale (`SpineSystem`) and every follower (`PodSystem`).
+  wave is never fed back into the rigid chain. `stepPose` (`systems/whale/pose.ts`)
+  runs it for every whale — player and pod alike carry a real `body.spine`.
 - **Whale body** (`render/whale/`): `ProceduralWhaleView` draws from one profile
   curve (`profile(t)`, `BODY_END`) sampled along the spine; all fins/flukes are
   offsets in the local frame, so the body bends and mirrors for free.
@@ -413,7 +418,8 @@ length 280 (28 m). Light: `DARK_START` 900 (90 m) → `DARK_FULL` 1800 (180 m).
 - **Object gallery** (`preview.html` → `src/preview.ts` → `Game.boot(mount, {
   preview: true })`): a second Vite entry that boots the game against a
   hand-placed scene (`world/PreviewScene.ts`) — one of every renderable entity
-  in a fixed camera frame — with only the animate-in-place systems plus a
+  in a fixed camera frame — with only the animate-in-place systems (`WhaleSystem`
+  in `simulate: false` mode poses bodies without stepping physics) plus a
   `PreviewDirector` (pins the camera, pulses a wide sonar ring). Use it to eyeball
   or screenshot a renderer change without a play-through: `npm run dev` →
   `http://localhost:8080/preview.html`.
@@ -462,8 +468,9 @@ that reads `?leg=` or a setting — nothing downstream changes.
   pod, krill amounts, school fish, ship positions, stats) to
   `localStorage["long-water:save"]`. The generated world is **not** saved — it
   rebuilds deterministically from the seed, so a save only loads against a
-  matching `rng.seedValue` (and schema `VERSION`). Follower spine chains are
-  dropped and re-seeded from the wake on load.
+  matching `rng.seedValue` (and schema `VERSION`). Each whale's `body` fields
+  are restored and its spine chains collapsed to a straight stub
+  (`WhaleBody.resetChains`); the swim wave rebuilds within a frame.
 - **Options** (`localStorage["long-water:opts"]`): master volume, applied via
   `audio:volume`.
 - **Restart** is a plain `location.reload()` (same seed, fresh run).

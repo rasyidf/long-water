@@ -6,7 +6,7 @@
  * *display* copy with the swimming wave layered on; the wave is never fed back
  * into `base`, so it can't accumulate into the chain's own shape.
  *
- * Shared verbatim by the player whale and every pod whale — see `SpineSystem`.
+ * Shared verbatim by every whale — see `systems/whale/pose.ts`.
  */
 import type { Vec2 } from "./math";
 
@@ -65,18 +65,18 @@ export function applyUndulation(
 
   for (let i = 1; i < n; i++) {
     const t = i / (n - 1);
-    
+
     // SMOOTHER TANGENT: Look ahead and behind, rather than just behind
     const prev = base[i - 1];
     const next = i < n - 1 ? base[i + 1] : base[i]; // tail cap
-    
+
     const dx = next.x - prev.x;
     const dy = next.y - prev.y;
     const d = Math.hypot(dx, dy) || 1;
-    
+
     const rear = Math.max(0, (t - 0.34) / 0.66);
     const off = Math.sin(wagPhase - i * 0.62) * strokeAmp * Math.pow(rear, 1.7);
-    
+
     // Apply normal
     out[i].x += (-dy / d) * off;
     out[i].y += (dx / d) * off;

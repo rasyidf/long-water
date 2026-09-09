@@ -1,13 +1,12 @@
 /** Wild / answering / following whales. Populated by `WorldSpawner`. */
-import type { Vec2 } from "../core/math";
+import { WhaleBody } from "./WhaleBody";
 
 export type PodState = "wild" | "answered" | "following" | "lost";
 
 export interface PodWhale {
-  x: number;
-  y: number;
-  vx: number;
-  vy: number;
+  /** movement + pose state, stepped by the shared locomotion/pose code */
+  body: WhaleBody;
+
   state: PodState;
   /** 0..1 sonar-lit glow, decays */
   lit: number;
@@ -24,33 +23,68 @@ export interface PodWhale {
   hunger: number;
   nextSong: number;
   ph: number;
-  /** individual size variance, ~1.0. Multiplies the age-derived body length. */
   size: number;
-  /** maturity 0..1: 0 a newborn calf, 1 a full-grown adult. Drives body length
-   * and proportions (calves are shorter, stubbier and bigger-headed). */
+  /** 0..1 maturity: 0 a newborn calf, 1 a full-grown adult */
   age: number;
-  wag: number;
-  /** rigid chain + display chain, created when it starts following */
-  base: Vec2[] | null;
-  spine: Vec2[] | null;
 }
 
 /** Reference body length: the player whale, in world units. */
 const ADULT_LEN = 280;
 
-/** Body length (world units) of a pod whale, from its maturity and individual
- * size. A calf comes out around 55% of an adult; used for both the spine chain
- * in `PodSystem` and the drawn body in `WhaleRenderer` so they never disagree. */
-export function podBodyLen(w: PodWhale): number {
-  return ADULT_LEN * w.size * (0.5 + 0.5 * w.age);
+/** Body length (world units) from maturity + individual size. A calf comes out
+ * around 55% of an adult. */
+export function bodyLenFor(size: number, age: number): number {
+  return ADULT_LEN * size * (0.5 + 0.5 * age);
 }
 
-/** Body half-width (girth) parameter for `WhaleView`. Calves carry a higher
+/** Body half-width (girth) for `WhaleView`. Calves carry a higher
  * girth-to-length ratio, so they read as stubby rather than as a small adult. */
 export function podGirth(w: PodWhale): number {
   const juv = 1 - w.age;
   const wobble = 1 + Math.sin((w.ph || 0) * 1.7) * 0.05;
   return 30 * (1 + 0.34 * juv) * wobble;
+}
+
+/** options for `makePodWhale`; movement fields go to the `WhaleBody`. */
+export interface PodWhaleInit {
+  x: number;
+  y: number;
+  vx?: number;
+  vy?: number;
+  state?: PodState;
+  lit?: number;
+  replyAt?: number;
+  cool?: number;
+  heard?: boolean;
+  answeredUntil?: number;
+  slot?: number;
+  stress?: number;
+  hunger?: number;
+  nextSong?: number;
+  ph?: number;
+  size?: number;
+  age?: number;
+}
+
+export function makePodWhale(o: PodWhaleInit): PodWhale {
+  const size = o.size ?? 1;
+  const age = o.age ?? 1;
+  return {
+    body: new WhaleBody(o.x, o.y, bodyLenFor(size, age), o.vx ?? 0, o.vy ?? 0),
+    state: o.state ?? "wild",
+    lit: o.lit ?? 0,
+    replyAt: o.replyAt ?? 0,
+    cool: o.cool ?? 0,
+    heard: o.heard ?? false,
+    answeredUntil: o.answeredUntil ?? 0,
+    slot: o.slot ?? -1,
+    stress: o.stress ?? 0,
+    hunger: o.hunger ?? 0,
+    nextSong: o.nextSong ?? 0,
+    ph: o.ph ?? 0,
+    size,
+    age,
+  };
 }
 
 export class Pod {

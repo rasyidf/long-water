@@ -12,7 +12,12 @@ export function mixColor(a: number, b: number, t: number): number {
   return (r << 16) | (g << 8) | bl;
 }
 
-export function mixColorAlpha(a: number, b: number, t: number, alpha: number): number {
+export function mixColorAlpha(
+  a: number,
+  b: number,
+  t: number,
+  alpha: number,
+): number {
   const ar = (a >> 16) & 255;
   const ag = (a >> 8) & 255;
   const ab = a & 255;

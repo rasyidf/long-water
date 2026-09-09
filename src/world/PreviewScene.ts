@@ -7,7 +7,6 @@
 import { COL, NCOL } from "../config/constants";
 import { clamp01 } from "../core/math";
 import type { Rng } from "../core/rng";
-import { makeChain } from "../core/SpineChain";
 import type {
   Coral,
   CoralStore,
@@ -17,7 +16,12 @@ import type {
 } from "../state/Fauna";
 import type { ParticleStore, ShipStore } from "../state/Hazards";
 import type { PlayerWhale } from "../state/PlayerWhale";
-import type { Pod, PodWhale } from "../state/Pod";
+import {
+  makePodWhale,
+  type Pod,
+  type PodWhale,
+  type PodWhaleInit,
+} from "../state/Pod";
 import type { Heightfield } from "./Heightfield";
 
 /** where `Game` should pin the camera for the preview frame */
@@ -67,30 +71,8 @@ function makeSwarm(rng: Rng, x: number, y: number, r: number): Swarm {
   };
 }
 
-function podWhale(over: Partial<PodWhale>): PodWhale {
-  return {
-    x: 0,
-    y: 0,
-    vx: 0,
-    vy: 0,
-    state: "wild",
-    lit: 0,
-    replyAt: 0,
-    cool: 0,
-    heard: false,
-    answeredUntil: 0,
-    slot: -1,
-    stress: 0,
-    hunger: 0,
-    nextSong: 0,
-    ph: 0,
-    size: 1,
-    age: 0.95,
-    wag: 0,
-    base: null,
-    spine: null,
-    ...over,
-  };
+function podWhale(over: PodWhaleInit): PodWhale {
+  return makePodWhale({ size: 1, age: 0.95, ...over });
 }
 
 export function buildPreviewScene(
@@ -115,18 +97,13 @@ export function buildPreviewScene(
   // player whale, over the shelf edge and close to the reef, so its school
   // renders mid-shelter (balled into the coral) while the open-water school
   // off to the right — out of range — stays spread
-  whale.x = 1500;
-  whale.y = 460;
-  whale.vx = 70;
-  whale.vy = 0;
-  whale.facing = 1;
-  whale.trail.reset(whale.x, whale.y);
-  makeChain(whale.x, whale.y).forEach((p, i) => {
-    whale.spineBase[i].x = p.x;
-    whale.spineBase[i].y = p.y;
-    whale.spine[i].x = p.x;
-    whale.spine[i].y = p.y;
-  });
+  whale.body.x = 1500;
+  whale.body.y = 460;
+  whale.body.vx = 70;
+  whale.body.vy = 0;
+  whale.body.facing = 1;
+  whale.trail.reset(whale.body.x, whale.body.y);
+  whale.body.resetChains();
 
   // coral patch on the shallow shelf
   const items: Coral[] = [];

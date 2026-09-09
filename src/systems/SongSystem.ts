@@ -37,7 +37,7 @@ export class SongSystem implements System {
     const { whale, pod, bus, stats, clock, rng } = ctx;
     const crew = pod
       .followers()
-      .filter((w) => Math.hypot(w.x - whale.x, w.y - whale.y) < 1400);
+      .filter((w) => Math.hypot(w.body.x - whale.x, w.body.y - whale.y) < 1400);
     const n = crew.length;
     whale.breath -= 6;
     const strength = Math.min(2.6, 1 + n * 0.34); // voices stack
@@ -106,7 +106,7 @@ export class SongSystem implements System {
         if (s.amount > 0 && band(s.x, s.y)) s.lit = 1;
       for (const sc of schools.schools) if (band(sc.ax, sc.ay)) sc.lit = 1;
       for (const w of pod.whales) {
-        if (w.state === "following" || !band(w.x, w.y)) continue;
+        if (w.state === "following" || !band(w.body.x, w.body.y)) continue;
         w.lit = 1;
         if (p.friendly && w.replyAt <= 0 && clock.t > w.cool) {
           w.replyAt = clock.t + rng.range(0.7, 1.8);
@@ -140,13 +140,13 @@ export class SongSystem implements System {
             });
         }
         bus.emit("song:emitted", {
-          x: w.x,
-          y: w.y,
+          x: w.body.x,
+          y: w.body.y,
           strength: 0.8,
           friendly: false,
           chorus: 0,
         });
-        const d = Math.hypot(w.x - whale.x, w.y - whale.y);
+        const d = Math.hypot(w.body.x - whale.x, w.body.y - whale.y);
         bus.emit("audio:call", {
           f0: rng.range(200, 260),
           f1: rng.range(58, 78),

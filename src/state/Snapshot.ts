@@ -7,11 +7,11 @@
  * seed, so the world and its entity counts are identical.
  */
 import type { GameContext } from "../core/GameContext";
-import { makeChain } from "../core/SpineChain";
 import type { PodState } from "./Pod";
+import { saveBody, type WhaleBodySave } from "./WhaleBody";
 
 const KEY = "long-water:save";
-const VERSION = 2; // bumped: shallow-water terrain pass moved the seabed
+const VERSION = 3; // bumped: whale movement state moved onto WhaleBody
 
 interface SaveData {
   v: number;
@@ -26,12 +26,7 @@ interface SaveData {
     shown: string[];
   };
   whale: {
-    x: number;
-    y: number;
-    vx: number;
-    vy: number;
-    facing: number;
-    wag: number;
+    body: WhaleBodySave;
     breath: number;
     energy: number;
     drowning: number;
@@ -39,10 +34,7 @@ interface SaveData {
     done: boolean;
   };
   pod: Array<{
-    x: number;
-    y: number;
-    vx: number;
-    vy: number;
+    body: WhaleBodySave;
     state: PodState;
     lit: number;
     replyAt: number;
@@ -53,7 +45,6 @@ interface SaveData {
     stress: number;
     hunger: number;
     nextSong: number;
-    wag: number;
   }>;
   krill: Array<{ x: number; baseY: number; amount: number }>;
   schools: Array<{
@@ -84,12 +75,7 @@ export function save(ctx: GameContext): boolean {
       shown: [...ctx.stats.shown],
     },
     whale: {
-      x: ctx.whale.x,
-      y: ctx.whale.y,
-      vx: ctx.whale.vx,
-      vy: ctx.whale.vy,
-      facing: ctx.whale.facing,
-      wag: ctx.whale.wag,
+      body: saveBody(ctx.whale.body),
       breath: ctx.whale.breath,
       energy: ctx.whale.energy,
       drowning: ctx.whale.drowning,
@@ -97,10 +83,7 @@ export function save(ctx: GameContext): boolean {
       done: ctx.whale.done,
     },
     pod: ctx.pod.whales.map((w) => ({
-      x: w.x,
-      y: w.y,
-      vx: w.vx,
-      vy: w.vy,
+      body: saveBody(w.body),
       state: w.state,
       lit: w.lit,
       replyAt: w.replyAt,
@@ -111,7 +94,6 @@ export function save(ctx: GameContext): boolean {
       stress: w.stress,
       hunger: w.hunger,
       nextSong: w.nextSong,
-      wag: w.wag,
     })),
     krill: ctx.krill.swarms.map((s) => ({
       x: s.x,
@@ -152,22 +134,23 @@ export function load(ctx: GameContext): boolean {
   ctx.stats.shown.clear();
   for (const k of data.stats.shown) ctx.stats.shown.add(k);
 
-  Object.assign(ctx.whale, data.whale);
-  ctx.whale.trail.reset(ctx.whale.x, ctx.whale.y);
-  const head = makeChain(ctx.whale.x, ctx.whale.y);
-  head.forEach((p, i) => {
-    ctx.whale.spineBase[i].x = p.x;
-    ctx.whale.spineBase[i].y = p.y;
-    ctx.whale.spine[i].x = p.x;
-    ctx.whale.spine[i].y = p.y;
-  });
+  const wb = ctx.whale.body;
+  Object.assign(wb, data.whale.body);
+  ctx.whale.breath = data.whale.breath;
+  ctx.whale.energy = data.whale.energy;
+  ctx.whale.drowning = data.whale.drowning;
+  ctx.whale.alive = data.whale.alive;
+  ctx.whale.done = data.whale.done;
+  ctx.whale.trail.reset(wb.x, wb.y);
+  wb.resetChains();
 
   data.pod.forEach((s, i) => {
     const w = ctx.pod.whales[i];
     if (!w) return;
-    Object.assign(w, s);
-    w.base = null; // PodSystem re-seeds a follower's chain from the wake
-    w.spine = null;
+    const { body, ...rest } = s;
+    Object.assign(w.body, body);
+    Object.assign(w, rest);
+    w.body.resetChains();
   });
 
   data.krill.forEach((s, i) => {

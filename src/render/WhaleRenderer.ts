@@ -1,9 +1,10 @@
 /** Draws every whale (pod + player) and the whale-adjacent bubbles, delegating
- * body drawing to a swappable `WhaleView`. */
+ * body drawing to a swappable `WhaleView`. Every whale — player and pod — now
+ * carries a real `body.spine`, so this is a pure consumer of movement state. */
 import { C } from "../config/constants";
 import { lightAt } from "../core/light";
-import { clamp01, type Vec2 } from "../core/math";
-import { podBodyLen, podGirth } from "../state/Pod";
+import { clamp01 } from "../core/math";
+import { podGirth } from "../state/Pod";
 import type { GameContext } from "../core/GameContext";
 import type { System } from "../core/System";
 import { ProceduralWhaleView } from "./whale/ProceduralWhaleView";
@@ -15,88 +16,67 @@ export class WhaleRenderer implements System {
   constructor(private view: WhaleView = new ProceduralWhaleView()) {}
 
   render(ctx: GameContext): void {
-    const { camera: cam, layers: L, clock, whale, pod } = ctx;
+    const { camera: cam, layers: L, whale, pod } = ctx;
     const wg = L.whales;
     wg.clear();
 
     for (const w of pod.whales) {
-      // Body length and proportions come from the whale's own maturity/size, not
-      // the leader's — a calf is genuinely shorter and stubbier, never the same
-      // length drawn thin. `drawScale` scales girth and fins to match the body
-      // so the aspect stays constant across sizes.
-      const bodyLen = podBodyLen(w);
-      const drawScale = bodyLen / 280;
-      const girth = podGirth(w);
+      const b = w.body;
+      // proportions come from this whale's own maturity/size — a calf is
+      // genuinely shorter and stubbier, `drawScale` keeps the aspect constant
+      const drawScale = b.len / 280;
       const juv = clamp01(1 - w.age);
 
+      let alpha: number;
       if (w.state === "following") {
-        if (w.spine)
-          this.view.draw(
-            wg,
-            w.spine,
-            {
-              scale: drawScale,
-              facing: 1,
-              skin: C.wildSkin,
-              belly: C.wildBelly,
-              alpha: 0.95,
-              width: girth,
-              juv,
-            },
-            cam,
-          );
-        continue;
+        alpha = 0.95;
+      } else {
+        const v = Math.max(
+          lightAt(b.y) * 0.7,
+          w.lit,
+          w.state === "answered" ? 0.45 : 0,
+        );
+        if (v < 0.05 || Math.abs(b.x - cam.x) > 6000) continue;
+        alpha = Math.min(0.92, v);
       }
-      const v = Math.max(
-        lightAt(w.y) * 0.7,
-        w.lit,
-        w.state === "answered" ? 0.45 : 0,
-      );
-      if (v < 0.05 || Math.abs(w.x - cam.x) > 6000) continue;
-      const step = bodyLen / 15;
-      const sp: Vec2[] = [];
-      for (let i = 0; i < 16; i++)
-        sp.push({
-          x: w.x - i * step,
-          y:
-            w.y +
-            Math.sin(clock.t * 1.1 + w.ph - i * 0.5) * (2 + (i / 15) * 12),
-        });
 
       this.view.draw(
         wg,
-        sp,
+        b.spine,
         {
           scale: drawScale,
-          facing: 1,
+          facing: b.facing >= 0 ? 1 : -1,
           skin: C.wildSkin,
           belly: C.wildBelly,
-          alpha: Math.min(0.92, v),
-          width: girth,
+          alpha,
+          width: podGirth(w),
           juv,
+          roll: b.roll,
+          rollK: b.rollBlend,
         },
         cam,
       );
     }
 
-    // --- Draw the Main Player Whale ---
+    // --- the player ---
+    const pb = whale.body;
     this.view.draw(
       wg,
-      whale.spine,
+      pb.spine,
       {
         scale: 1,
-        facing: whale.facing >= 0 ? 1 : -1,
+        facing: pb.facing >= 0 ? 1 : -1,
         skin: C.skin,
         belly: C.belly,
         alpha: 1,
         width: 38,
-        roll: whale.spin,
-        rollK: whale.spinBlend,
+        roll: pb.roll,
+        rollK: pb.rollBlend,
       },
       cam,
     );
 
-    // --- Draw Bubbles ---
+    // --- bubbles ---
     for (const b of ctx.particles.bubbles) {
       wg.circle(cam.sx(b.x), cam.sy(b.y), b.r * cam.scale * 1.5);
       wg.fill({ color: C.foam, alpha: Math.min(0.7, b.life) });

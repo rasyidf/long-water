@@ -13,7 +13,7 @@ import type {
   Swarm,
 } from "../state/Fauna";
 import type { ParticleStore, ShipStore } from "../state/Hazards";
-import type { Pod } from "../state/Pod";
+import { makePodWhale, type Pod } from "../state/Pod";
 import { clamp } from "../core/math";
 import type { Heightfield } from "./Heightfield";
 
@@ -95,28 +95,17 @@ export function spawnWorld(
   // pod — one near the start, then scattered down the route. Adults travel
   // alone; a calf only appears alongside its mother.
   const wild = (x: number, y: number, age: number): void => {
-    pod.add({
-      x,
-      y,
-      vx: rng.range(-30, 10),
-      vy: 0,
-      state: "wild",
-      lit: 0,
-      replyAt: 0,
-      cool: 0,
-      heard: false,
-      answeredUntil: 0,
-      slot: -1,
-      stress: 0,
-      hunger: 0,
-      nextSong: 0,
-      ph: rng.next() * 9,
-      size: rng.range(0.9, 1.06),
-      age,
-      wag: 0,
-      base: null,
-      spine: null,
-    });
+    pod.add(
+      makePodWhale({
+        x,
+        y,
+        vx: rng.range(-30, 10),
+        state: "wild",
+        ph: rng.next() * 9,
+        size: rng.range(0.9, 1.06),
+        age,
+      }),
+    );
   };
 
   wild(3400, 1000, rng.range(0.85, 1));

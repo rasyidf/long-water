@@ -38,9 +38,8 @@ import { PreviewDirector } from "../systems/PreviewDirector";
 import { SchoolSystem } from "../systems/SchoolSystem";
 import { ShipSystem } from "../systems/ShipSystem";
 import { SongSystem } from "../systems/SongSystem";
-import { SpineSystem } from "../systems/SpineSystem";
 import { VitalsSystem } from "../systems/VitalsSystem";
-import { WhaleMovementSystem } from "../systems/WhaleMovementSystem";
+import { WhaleSystem } from "../systems/WhaleSystem";
 
 import { BackgroundRenderer } from "../render/BackgroundRenderer";
 import { CoralRenderer } from "../render/CoralRenderer";
@@ -132,7 +131,7 @@ export class Game {
     if (preview && framing) {
       // gallery: only the animate-in-place systems + every renderer
       this.systems = [
-        new SpineSystem(),
+        new WhaleSystem(false),
         new SongSystem(),
         new KrillSystem(),
         new SchoolSystem(),
@@ -154,10 +153,10 @@ export class Game {
       return;
     }
 
-    // order matters: input/physics -> reactions -> spine -> camera -> renderers -> hud
+    // order matters: input/physics -> reactions -> camera -> renderers -> hud
     this.systems = [
       new AudioSystem(),
-      new WhaleMovementSystem(),
+      new WhaleSystem(),
       new VitalsSystem(),
       new FeedingSystem(),
       new SongSystem(),
@@ -166,7 +165,6 @@ export class Game {
       new SchoolSystem(),
       new ShipSystem(),
       new ParticleSystem(),
-      new SpineSystem(),
       new CameraSystem(),
 
       new BackgroundRenderer(),
