@@ -147,7 +147,7 @@ export function spawnWorld(
         coral.items.push({
           x: cx,
           y: cy,
-          kind: (rng.next() * 3) | 0,
+          kind: (rng.next() * 5) | 0,
           scale: rng.range(0.75, 1.7),
           ph: rng.next() * Math.PI * 2,
         });

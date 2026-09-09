@@ -76,12 +76,26 @@ export class TerrainRenderer implements System {
       this.trace(g, cam, first, last, (wx) => cam.sx(wx), at);
       g.fill({ color: C.rock });
 
+      // lit crest — a stroke that hugs the exact spline the fill's top edge
+      // follows. Brightness tracks the ambient light at each column; dark
+      // columns simply break the line. (Was a row of flat per-column rects,
+      // which stair-stepped along the curved crest instead of tracing it.)
       const sc = cam.scale;
+      const mx = (c: number): number => cam.sx((c + 0.5) * COL);
+      const my = (c: number): number => cam.sy((at(c) + at(c + 1)) / 2);
       for (let c = first; c < last; c++) {
-        const amb = lightAt(at(c)) * 0.9;
+        const amb = lightAt(at(c));
         if (amb < 0.05) continue;
-        g.rect(cam.sx(c * COL) - 1, cam.sy(at(c)) - 2, COL * sc + 2, 3);
-        g.fill({ color: C.rockLit, alpha: amb });
+        const ax = c === first ? cam.sx(first * COL) : mx(c - 1);
+        const ay = c === first ? cam.sy(at(first)) : my(c - 1);
+        g.moveTo(ax, ay);
+        g.quadraticCurveTo(cam.sx(c * COL), cam.sy(at(c)), mx(c), my(c));
+        g.stroke({
+          width: 2 + 1.6 * sc,
+          color: C.rockLit,
+          alpha: Math.min(1, amb),
+          cap: "round",
+        });
       }
     }
   }

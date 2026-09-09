@@ -52,7 +52,7 @@ export interface Coral {
   x: number;
   /** seabed y the coral is rooted at */
   y: number;
-  /** 0 sea fan | 1 staghorn | 2 brain mound */
+  /** 0 sea fan | 1 staghorn | 2 brain | 3 tube sponges | 4 sea whip */
   kind: number;
   scale: number;
   /** sway phase */

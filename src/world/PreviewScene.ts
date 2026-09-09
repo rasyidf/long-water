@@ -107,12 +107,12 @@ export function buildPreviewScene(
 
   // coral patch on the shallow shelf
   const items: Coral[] = [];
-  for (let x = 1000; x < 1480; x += rng.range(48, 96)) {
+  for (let x = 800; x < 1560; x += rng.range(95, 150)) {
     items.push({
       x,
       y: floorAt(x),
-      kind: items.length % 3,
-      scale: rng.range(0.85, 1.7),
+      kind: items.length % 5,
+      scale: rng.range(0.85, 1.5),
       ph: rng.next() * Math.PI * 2,
     });
   }

@@ -7,6 +7,7 @@ import { clamp01, hash01 } from "../core/math";
 import type { GameContext } from "../core/GameContext";
 import type { System } from "../core/System";
 import { gradientTexture, hex } from "./textures";
+import { mixColor } from "./color";
 
 /** brightness of a light shaft along its length (0..1 of its own length):
  * ramps in just under the surface, then eases to zero at the bottom. */
@@ -25,8 +26,11 @@ export class BackgroundRenderer implements System {
       this.waterTex[z.id] = gradientTexture(
         [
           [0, hex(z.shelf)],
-          [0.16, hex(z.shelf)],
-          [0.4, hex(z.deep)],
+          [0.1, hex(z.shelf)],
+          // eased shelf→deep so the flat-then-ramp join doesn't read as a
+          // hard horizontal band (a Mach edge) partway down the column
+          [0.26, hex(mixColor(z.shelf, z.deep, 0.35))],
+          [0.46, hex(z.deep)],
           [0.62, "#050d16"],
           [0.82, "#03080f"],
           [1, "#02040a"],
@@ -111,15 +115,36 @@ export class BackgroundRenderer implements System {
       L.sky.height = Math.max(1, y0 + ampPx + 30 * sc); // cover the deepest trough
     }
 
-    // animated wavy waterline
+    // animated wavy waterline. The water body itself is a flat-topped sprite
+    // rectangle, so on its own its upper edge cuts a dead-straight line across
+    // the wave crests while the foam wiggles separately above it — reading as
+    // two disconnected lines. We first paint an opaque wavy apron in the
+    // water's own surface colour, from the waveline down past that straight
+    // edge, then lay the sunlit slabs and a soft double foam stroke over it:
+    // one continuous crest, no seam.
     const sf = L.surface;
     sf.clear();
     if (surfaceVisible) {
-      const N = 40;
+      const N = 72;
+      const span = VW + 80;
       const wy = (screenX: number): number => {
         const wx = cam.x + (screenX - VW / 2) / sc;
         return y0 + this.waveAt(wx, clock.t) * sc * (ampWorld / 22);
       };
+      const traceTop = (): void => {
+        sf.moveTo(-40, wy(-40));
+        for (let i = 0; i <= N; i++)
+          sf.lineTo((i / N) * span - 40, wy((i / N) * span - 40));
+      };
+
+      // opaque apron — covers the sprite's straight top edge in every trough
+      const apron = ampPx + 90 * sc;
+      traceTop();
+      sf.lineTo(VW + 40, wy(VW + 40) + apron);
+      sf.lineTo(-40, wy(-40) + apron);
+      sf.closePath();
+      sf.fill({ color: z.shelf });
+
       // sunlit near-surface layer — stacked slabs so its lower edge dissolves
       // into the water column instead of ending on a hard line
       const slabs: ReadonlyArray<readonly [number, number]> = [
@@ -128,20 +153,28 @@ export class BackgroundRenderer implements System {
         [260 * sc + 220, 0.12],
       ];
       for (const [band, a] of slabs) {
-        sf.moveTo(-40, wy(-40));
-        for (let i = 0; i <= N; i++)
-          sf.lineTo((i / N) * (VW + 80) - 40, wy((i / N) * (VW + 80) - 40));
+        traceTop();
         sf.lineTo(VW + 40, wy(VW + 40) + band);
         sf.lineTo(-40, wy(-40) + band);
         sf.closePath();
-        sf.fill({ color: z.shelf, alpha: a });
+        sf.fill({ color: mixColor(z.shelf, 0xdff2ec, 0.12), alpha: a });
       }
 
-      // foam crest
-      sf.moveTo(-40, wy(-40));
-      for (let i = 0; i <= N; i++)
-        sf.lineTo((i / N) * (VW + 80) - 40, wy((i / N) * (VW + 80) - 40));
-      sf.stroke({ width: 1 + 1.6 * sc, color: C.foam, alpha: 0.45 });
+      // foam crest — a soft wide pass under a crisp thread, both round-joined
+      // so the line never breaks on the steep face of a wave
+      for (const [w, al] of [
+        [4 + 3 * sc, 0.16],
+        [1 + 1.4 * sc, 0.5],
+      ] as const) {
+        traceTop();
+        sf.stroke({
+          width: w,
+          color: C.foam,
+          alpha: al,
+          cap: "round",
+          join: "round",
+        });
+      }
     }
 
     // light shafts — sunlight from above, angled slightly off vertical. Each
