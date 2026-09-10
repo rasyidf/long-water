@@ -20,6 +20,7 @@ import type { Pod } from "../state/Pod";
 import type { PlayerWhale } from "../state/PlayerWhale";
 import type { RunStats } from "../state/RunStats";
 import type { Score } from "../state/Score";
+import type { SquidStore } from "../state/Squid";
 
 export interface GameContext {
   readonly app: Application;
@@ -39,6 +40,7 @@ export interface GameContext {
   readonly schools: SchoolStore;
   readonly coral: CoralStore;
   readonly ships: ShipStore;
+  readonly squid: SquidStore;
   readonly song: SongField;
   readonly particles: ParticleStore;
   readonly stats: RunStats;

@@ -10,6 +10,7 @@
  * Everything is folded into a desired velocity, then handed to `stepLocomotion`
  * as a critically-damped approach force.
  */
+import { RAM_PULL, RAM_RANGE } from "../../config/squid";
 import type { GameContext } from "../../core/GameContext";
 import type { PodWhale } from "../../state/Pod";
 import type { Swarm } from "../../state/Fauna";
@@ -120,7 +121,7 @@ export class PodBrain {
     crew: ReadonlyArray<PodWhale>,
     dt: number,
   ): void {
-    const { whale, ships, world, krill, clock, bus, stats } = ctx;
+    const { whale, ships, world, krill, clock, bus, stats, squid } = ctx;
     const b = w.body;
     const des = this.des;
 
@@ -259,6 +260,20 @@ export class PodBrain {
         des.y += p * 340;
 
         if (absSd < 1800 && b.y < 1200) noisy = true;
+      }
+    }
+
+    // 8b. Mob a squid latched onto the leader — the pod piles on to tear it off
+    const grabber = squid.latched;
+    if (grabber) {
+      const mdx = grabber.x - b.x;
+      const mdy = grabber.y - b.y;
+      const md = dist(mdx, mdy) || 1;
+      const reach = RAM_RANGE * 1.7;
+      if (md < reach) {
+        const pull = ((reach - md) / reach) * RAM_PULL;
+        des.x += (mdx / md) * pull;
+        des.y += (mdy / md) * pull;
       }
     }
 

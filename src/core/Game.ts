@@ -12,6 +12,7 @@ import { Pod } from "../state/Pod";
 import { PlayerWhale } from "../state/PlayerWhale";
 import { RunStats } from "../state/RunStats";
 import { Score } from "../state/Score";
+import { SquidStore } from "../state/Squid";
 import { Heightfield } from "../world/Heightfield";
 import {
   buildPreviewScene,
@@ -42,6 +43,7 @@ import { PreviewDirector } from "../systems/PreviewDirector";
 import { SchoolSystem } from "../systems/SchoolSystem";
 import { ScoreSystem } from "../systems/ScoreSystem";
 import { ShipSystem } from "../systems/ShipSystem";
+import { SquidSystem } from "../systems/SquidSystem";
 import { SongSystem } from "../systems/SongSystem";
 import { VitalsSystem } from "../systems/VitalsSystem";
 import { WhaleSystem } from "../systems/WhaleSystem";
@@ -52,6 +54,7 @@ import { FaunaRenderer } from "../render/FaunaRenderer";
 import { KrillRenderer } from "../render/fauna/KrillRenderer";
 import { GlowRenderer } from "../render/GlowRenderer";
 import { ShipRenderer } from "../render/ShipRenderer";
+import { SquidRenderer } from "../render/SquidRenderer";
 import { TerrainRenderer } from "../render/TerrainRenderer";
 import { WhaleRenderer } from "../render/WhaleRenderer";
 
@@ -127,6 +130,7 @@ export class Game {
     const schools = new SchoolStore();
     const coral = new CoralStore();
     const ships = new ShipStore();
+    const squid = new SquidStore();
     const particles = new ParticleStore();
     const stores = { krill, schools, coral, pod, ships, particles };
     let framing: PreviewFraming | null = null;
@@ -158,6 +162,7 @@ export class Game {
       schools,
       coral,
       ships,
+      squid,
       song: new SongField(),
       particles,
       stats: new RunStats(),
@@ -201,6 +206,7 @@ export class Game {
       new FeedingSystem(),
       new SongSystem(),
       new PodSystem(),
+      new SquidSystem(),
       new KrillSystem(),
       new SchoolSystem(),
       new ShipSystem(),
@@ -214,6 +220,7 @@ export class Game {
       new FaunaRenderer(),
       new KrillRenderer(),
       new WhaleRenderer(),
+      new SquidRenderer(),
       new ShipRenderer(),
       new GlowRenderer(),
 

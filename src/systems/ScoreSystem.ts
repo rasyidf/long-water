@@ -57,6 +57,27 @@ export class ScoreSystem implements System {
       this.award(ctx, POINTS.chorus, t("trick.chorus")),
     );
 
+    bus.on("squid:evaded", ({ closeness, pos }) => {
+      const scale = 0.3 + 0.7 * closeness;
+      this.award(ctx, POINTS.squidDodge * scale, t("trick.squidDodge"), pos);
+    });
+
+    bus.on("squid:struck", ({ byPod, pos }) => {
+      this.award(
+        ctx,
+        byPod ? POINTS.squidPodDefense : POINTS.squidShaken,
+        t(byPod ? "trick.squidPod" : "trick.squidShaken"),
+        pos,
+      );
+    });
+
+    // a grab breaks the flow chain
+    bus.on("squid:grab", () => {
+      ctx.score.comboStep = 0;
+      ctx.score.comboMul = 1;
+      ctx.score.comboUntil = 0;
+    });
+
     bus.on("game:restart", () => {
       ctx.score.reset();
       this.passing.clear();

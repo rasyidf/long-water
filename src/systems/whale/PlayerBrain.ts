@@ -46,7 +46,10 @@ export class PlayerBrain {
     whale.surge = this.surgeCharge;
     o.ease = this.surgeCharge;
 
-    const acc = (surging ? 780 : 430) * (1 + 0.5 * this.surgeCharge);
+    // a latched squid steals thrust (see the backward / down tug below)
+    const grip = whale.grip;
+    const acc =
+      (surging ? 780 : 430) * (1 + 0.5 * this.surgeCharge) * (1 - 0.55 * grip);
 
     // tail-kick burst — fires on the Shift keydown edge
     if (
@@ -88,7 +91,14 @@ export class PlayerBrain {
       o.ay = move.y * acc;
       // a cruising whale is never truly still — a gentle idle glide keeps it level
       if (move.x === 0 && !surging) o.ax += b.facing * 42;
-      if (move.x === 0 && move.y === 0 && !surging) o.levelOut = true;
+      if (move.x === 0 && move.y === 0 && !surging && grip < 0.01)
+        o.levelOut = true;
+    }
+
+    // latched-squid drag: hauls the whale back and down until it's shaken
+    if (grip > 0.01) {
+      o.ax -= b.facing * 300 * grip;
+      o.ay += 160 * grip;
     }
 
     // wake streak while driving hard

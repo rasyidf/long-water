@@ -45,6 +45,26 @@ export class GlowRenderer implements System {
       });
     }
 
+    // squid: photophores down the mantle + eye-shine, pulsing with arousal
+    for (const sq of ctx.squid.squids) {
+      const glow = sq.arousal * 0.6 + (sq.state === "strike" ? 0.4 : 0);
+      if (glow < 0.05 || Math.abs(sq.x - cam.x) > 5200) continue;
+      const ca = Math.cos(sq.heading);
+      const sa = Math.sin(sq.heading);
+      const k = sc * sq.size;
+      const pulse = 0.6 + 0.4 * Math.sin(sq.jet * 1.4);
+      for (let n = 0; n < 5; n++) {
+        const al = 20 + n * 34;
+        const pe = (n % 2 ? 1 : -1) * 14;
+        gg.circle(
+          cam.sx(sq.x) + (al * ca - pe * sa) * k,
+          cam.sy(sq.y) + (al * sa + pe * ca) * k,
+          (2.2 + n * 0.3) * k,
+        );
+      }
+      gg.fill({ color: 0x7fd7e6, alpha: Math.min(0.8, glow * pulse) });
+    }
+
     for (const p of ctx.song.pings) {
       const fade = 1 - p.r / p.maxR;
       gg.circle(cam.sx(p.x), cam.sy(p.y), p.r * sc);

@@ -23,6 +23,7 @@ export const LAYER_ORDER = [
   "fish",
   "krill",
   "whales",
+  "predators",
   "ships",
   "caustics",
   "darkness",
@@ -54,6 +55,8 @@ export class Layers {
     dynamicProperties: { position: true, color: true },
   });
   readonly whales = new Graphics();
+  /** deep-water squid, drawn just over the whales */
+  readonly predators = new Graphics();
   readonly ships = new Graphics();
   readonly caustics = new Graphics();
 
@@ -91,6 +94,7 @@ export class Layers {
       this.fish,
       this.krill,
       this.whales,
+      this.predators,
       this.ships,
       this.caustics,
       this.darkFill,

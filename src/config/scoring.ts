@@ -35,6 +35,12 @@ export const POINTS = {
   chorus: 120,
   /** passed close to a ship hull at speed without spooking the pod */
   closePass: 160,
+  /** dodged a squid strike — scaled 0.3..1 by how close it came */
+  squidDodge: 220,
+  /** shook a latched squid off yourself */
+  squidShaken: 260,
+  /** the pod tore a latched squid off for you */
+  squidPodDefense: 340,
 } as const;
 
 /**

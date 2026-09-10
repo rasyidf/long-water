@@ -68,6 +68,15 @@ export interface GameEvents {
   /** a one-shot route / pod / depth milestone was reached */
   "score:milestone": { id: string; label: string; points: number };
 
+  /** a squid latched onto the whale */
+  "squid:grab": { pos: Vec2 };
+  /** a squid strike whiffed; `closeness` 0..1 how near it came */
+  "squid:evaded": { closeness: number; pos: Vec2 };
+  /** a latched squid was thrown off — `byPod` if the pod did the work */
+  "squid:struck": { byPod: boolean; pos: Vec2 };
+  /** a latched squid let go on its own */
+  "squid:released": { pos: Vec2 };
+
   /** request a transient on-screen hint */
   "hint:show": { text: string; secs: number };
 
