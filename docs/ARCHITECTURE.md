@@ -144,6 +144,12 @@ State machine per wild whale: **wild → answered → following → lost**.
   noise footprint makes followers dive and, if the player keeps the pod shallow
   and close to a ship, breaks whales off. Counter-play: take the pod deep and
   time the crossing between hulls.
+- **Squid.** Deep-water ambush predator, only past the shelf and only when the
+  whale is down in the dark. It stalks from the blind spot behind the fluke and
+  jets in to latch on; a passenger drains reserves + breath and drags on the
+  whale. Counter-play: kick hard, carry speed, run for the surface — or keep a
+  pod, which mobs the squid off fast. Non-lethal (reserves are floored). Seed-
+  derived encounters, so a given seed meets them at the same places.
 - **Seabed.** A generated depth profile with legible regions (shelf, slope,
   plain, ridge, seamount, canyon, trench). Whales can't clip through it; the
   player bounces off with downward velocity.
@@ -313,7 +319,7 @@ communicate through one typed event bus.
 ```ts
 interface GameContext {
   app; bus; rng; clock; camera; input; layers; world; level;   // services
-  whale; pod; krill; schools; coral; ships; song; particles; stats; score;  // stores
+  whale; pod; krill; schools; coral; ships; squid; song; particles; stats; score;  // stores
   running: boolean;
 }
 ```
@@ -329,6 +335,7 @@ Whale: `whale:surfaced {impactVy,pos}`, `whale:submerged {pos}`,
 `whale:breach {flips,up,pos}`, `whale:reentry {airtime,entryVy,entrySpeed,turns,cleanArc,pos}`,
 `krill:fed`.
 Score: `score:award {points,label,mult,pos?}`, `score:milestone {id,label,points}`.
+Squid: `squid:grab {pos}`, `squid:evaded {closeness,pos}`, `squid:struck {byPod,pos}`, `squid:released {pos}`.
 HUD/FX: `hint:show {text,secs}`, `fx:shake`, `fx:bubbles`.
 
 ## 4. Systems
@@ -345,15 +352,17 @@ HUD/FX: `hint:show {text,secs}`, `fx:shake`, `fx:bubbles`.
 | `SchoolSystem` | ✓ | Fish boids (cohesion/alignment/separation + whale avoidance). Cosmetic — not food. Reef schools (with a coral `home`) take cover in the coral as the whale nears and spill out again after. |
 | `ShipSystem` | ✓ | Advances ships along the lane. Noise footprint is read by `PodBrain`. |
 | `ParticleSystem` | ✓ | Bubble pool; integrates and culls. Listens for `fx:bubbles`. |
-| `ScoreSystem` | ✓ | The scoring rules. Grades surface tricks (`whale:breach` + `whale:reentry` → airtime × flips × clean-entry), scores feeding / pod growth / choruses / ship close-passes, runs the flow (combo) chain (`config/scoring.ts`), and polls the whale for km / depth / pod-size milestones. Emits `score:award` / `score:milestone`. A new scored event is one `bus.on` + a row in `config/scoring.ts`. |
+| `ScoreSystem` | ✓ | The scoring rules. Grades surface tricks (`whale:breach` + `whale:reentry` → airtime × flips × clean-entry), scores feeding / pod growth / choruses / ship close-passes / squid encounters, runs the flow (combo) chain (`config/scoring.ts`), and polls the whale for km / depth / pod-size milestones. Emits `score:award` / `score:milestone`. A new scored event is one `bus.on` + a row in `config/scoring.ts`. |
+| `SquidSystem` | ✓ | The deep-water squid harasser. Seed-derived lairs (deterministic, `config/squid.ts`) spawn/despawn one squid each by whale proximity, `MAX_ACTIVE` cap. Per squid: `systems/squid/SquidBrain.ts` runs the FSM (`lurk → stalk → strike → latched → flee → recover`) — the stalk slides into the blind spot behind the fluke, leads the target, shies from lit water / ship noise, and only strikes when close + lined up + aroused (a high flow-combo winds it up faster). While latched: writes `whale.grip` (thrust loss + backward drag, read by `PlayerBrain`), drains reserves (floored) + breath, and accrues `struggle` from tail-kicks / speed / surfacing / pod mobbing (`PodBrain` steers followers onto it). Non-lethal. Emits `squid:*`. |
 | `CameraSystem` | ✓ | Cinematic director (`systems/camera/CameraRig.ts`): follow spring with an anticipatory velocity lead, speed-aware zoom, a subtle bank into turns, trauma-based shake, and event-driven "shots" — `breach` pulls wide + tilts + drops into wall-clock slow-mo (`clock.timeScale`), `submerged` punches back in, `surfaced` / `pod:*` ease wide briefly. |
 | `BackgroundRenderer` | render | Water column, sky, god-rays, marine snow, caustics, depth vignette, animated waterline. |
 | `TerrainRenderer` | render | Seabed spline + lit rim. |
 | `CoralRenderer` | render | Static coral growths on the shallow shelf/seamounts; ambient-lit, brightened by a sonar sweep. |
 | `FaunaRenderer` | render | Krill dots and fish darts (ambient-lit). |
 | `WhaleRenderer` | render | Every whale, via a `WhaleView`; whale-adjacent bubbles. |
+| `SquidRenderer` | render | Procedural squid (mantle / caudal fins / 8 arms + 2 tentacles with sway + grasp flare / eye), skin flushing pale with `arousal`, into the `predators` layer. |
 | `ShipRenderer` | render | Hulls + faint noise footprint. |
-| `GlowRenderer` | render | Additive bloom: lit seabed, lit fauna, song rings. |
+| `GlowRenderer` | render | Additive bloom: lit seabed, lit fauna, song rings, squid photophores. |
 | `Hud`, `ScoreHud`, `DepthRuler`, `Hints`, `Cards`, `PauseMenu` | render / init | DOM + canvas HUD (see §8). `ScoreHud` eases the score counter and flashes the trick popup on `score.awardSeq`. |
 
 ### Determinism
@@ -372,8 +381,9 @@ Plain classes, mutated in place by systems, serialized by `Snapshot`.
   `facing`, `wag`, `strokeAmp`, breach `roll`/`rollVel`/`rollBlend`, `len`, and the
   `spineBase` + `spine` joint chains. Stepped only by `systems/whale/*`.
 - **`PlayerWhale`** — a `body: WhaleBody`, its `trail`, and the resource state
-  (`breath`, `energy`, `drowning`, `alive`, `done`, `surge`). Read-only `x/y/vx/vy/
-  facing/speed/spine` facades forward to `body`.
+  (`breath`, `energy`, `drowning`, `alive`, `done`, `surge`, `grip`). Read-only
+  `x/y/vx/vy/facing/speed/spine` facades forward to `body`. `grip` 0–1 is written
+  by `SquidSystem` when a squid is latched.
 - **`Pod`** — `PodWhale[]`; each has a `body: WhaleBody` plus the social fields
   (`state`, formation `slot`, `stress`, `hunger`, reply timers, `ph/size/age`).
   `makePodWhale(init)` builds one. `followers()` helper.
@@ -384,6 +394,10 @@ Plain classes, mutated in place by systems, serialized by `Snapshot`.
   static, regenerated from the seed, never serialized).
 - **`Hazards`** — `ShipStore`, `SongField` (`Ping[]`), `ParticleStore`
   (bubbles + marine snow).
+- **`Squid`** — `SquidStore` (`Squid[]` + cached `latched`). Each `Squid`:
+  position/velocity, `heading`/`jet`/`flare` pose, FSM `state`, `arousal`,
+  `struggle`, `grip` (attach point in the whale frame), seed-`lair` + `homeX/Y`,
+  `cool`. Procedural + transient — not serialized; the pool is cleared on load.
 - **`RunStats`** — end-card tally + one-shot hint latches (`once(key)`).
 - **`Score`** — the arcade score layer: running `total`, `best` award, the flow
   chain (`comboStep`/`comboMul`/`comboUntil`), `lastAward` + `awardSeq` for the
@@ -427,9 +441,9 @@ canvas; a level's `leg.finishX` may end sooner. Whale length 280 (28 m). Light:
 ## 7. Rendering
 
 - **Layers** (`core/Layers.ts`), back to front: `sky, water, surface, shafts,
-  snow, terrain, coral, fish, krill, whales, ships, caustics, darkness (fill +
-  grad), glow`; a screen-space `overlay` holds the vignette. Screen shake is applied to
-  the world container, not per-layer.
+  snow, terrain, coral, fish, krill, whales, predators, ships, caustics, darkness
+  (fill + grad), glow`; a screen-space `overlay` holds the vignette. Screen shake
+  is applied to the world container, not per-layer.
 - **Camera** (`core/Camera.ts`) owns the world↔screen transform (`sx`/`sy`) and
   holds `x/y/scale/shake/rot`. All framing logic lives in `CameraSystem`'s
   `CameraRig`; `rot` is applied to the world container by `Game` with a matching

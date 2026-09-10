@@ -139,11 +139,16 @@ export class SquidSystem implements System {
     dt: number,
   ): void {
     let target: number;
-    if (sq.state === "strike" || sq.state === "latched") {
+    if (
+      sq.state === "stalk" ||
+      sq.state === "strike" ||
+      sq.state === "latched"
+    ) {
+      // hunting: mantle points away from the whale so the arms track it
       const wb = ctx.whale.body;
       target = Math.atan2(wb.y - sq.y, wb.x - sq.x) + Math.PI;
     } else if (sp > 30) {
-      target = Math.atan2(sq.vy, sq.vx);
+      target = Math.atan2(sq.vy, sq.vx); // jetting: mantle leads
     } else {
       return;
     }

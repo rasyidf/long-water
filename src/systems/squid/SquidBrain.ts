@@ -70,7 +70,7 @@ export class SquidBrain {
         this.lurk(sq, ctx, d, dt);
         break;
       case "stalk":
-        this.stalk(sq, ctx, wdx, d, dt);
+        this.stalk(sq, ctx, d, dt);
         break;
       case "strike":
         this.strike(sq, ctx, d);
@@ -139,17 +139,11 @@ export class SquidBrain {
     }
   }
 
-  private stalk(
-    sq: Squid,
-    ctx: GameContext,
-    wdx: number,
-    d: number,
-    dt: number,
-  ): void {
+  private stalk(sq: Squid, ctx: GameContext, d: number, dt: number): void {
     const o = this.out;
     const wb = ctx.whale.body;
     const showoff = ctx.score.comboStep >= K.SHOWOFF_STEP;
-    sq.arousal = Math.min(1, sq.arousal + dt * (showoff ? 0.85 : 0.5));
+    sq.arousal = Math.min(1, sq.arousal + dt * (showoff ? 0.6 : 0.38));
     o.flare = 0.1; // streamlined, sneaking
 
     // give up: whale bolted, climbed to the light, or the stalk has dragged on
@@ -179,9 +173,15 @@ export class SquidBrain {
     o.dvx = (tdx / td) * sp + wb.vx * 0.25;
     o.dvy = (tdy / td) * sp + wb.vy * 0.25;
 
-    // commit: close, worked up, and actually behind the whale
-    const behind = (-fx * wdx) / d > -0.15; // squid is at/behind the flank
-    if (d < K.STRIKE_RANGE && behind && sq.arousal > 0.6) {
+    // commit: shadowed a beat, close, fully worked up, and now on the whale's
+    // blind side (behind the fluke or level with it, not out in front)
+    const ahead = ((sq.x - wb.x) * fx) / d; // >0 ahead of the whale, <0 behind
+    if (
+      d < K.STRIKE_RANGE &&
+      ahead < 0.35 &&
+      sq.arousal > 0.85 &&
+      sq.age > 2.5
+    ) {
       sq.state = "strike";
       sq.age = 0;
       this.strikeMin = d;
@@ -248,11 +248,13 @@ export class SquidBrain {
     if (sq.struggle >= K.STRUGGLE_BREAK) {
       sq.state = "flee";
       sq.age = 0;
+      sq.struggle = 0;
       sq.cool = K.COOLDOWN;
       o.fire = "broke";
     } else if (sq.age >= K.LATCH_MAX) {
       sq.state = "flee";
       sq.age = 0;
+      sq.struggle = 0;
       sq.cool = K.COOLDOWN;
       o.fire = "released";
     }

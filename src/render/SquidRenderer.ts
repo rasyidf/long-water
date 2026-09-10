@@ -15,9 +15,9 @@ import type { System } from "../core/System";
 import type { Squid } from "../state/Squid";
 import { mixColor } from "./color";
 
-/** mantle length in world units at size 1 */
-const MANTLE = 190;
-const MANTLE_W = 46;
+/** mantle length in world units at size 1 (~a third of the player whale) */
+const MANTLE = 96;
+const MANTLE_W = 24;
 
 export class SquidRenderer implements System {
   readonly name = "render:squid";

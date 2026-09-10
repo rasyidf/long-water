@@ -54,12 +54,12 @@ export class GlowRenderer implements System {
       const k = sc * sq.size;
       const pulse = 0.6 + 0.4 * Math.sin(sq.jet * 1.4);
       for (let n = 0; n < 5; n++) {
-        const al = 20 + n * 34;
-        const pe = (n % 2 ? 1 : -1) * 14;
+        const al = 10 + n * 16; // down the ~96u mantle
+        const pe = (n % 2 ? 1 : -1) * 7;
         gg.circle(
           cam.sx(sq.x) + (al * ca - pe * sa) * k,
           cam.sy(sq.y) + (al * sa + pe * ca) * k,
-          (2.2 + n * 0.3) * k,
+          (1.6 + n * 0.25) * k,
         );
       }
       gg.fill({ color: 0x7fd7e6, alpha: Math.min(0.8, glow * pulse) });
