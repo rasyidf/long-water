@@ -2,6 +2,11 @@
 export class Clock {
   t = 0;
   dt = 0;
+  /** the clamped step *before* `timeScale` — real wall-clock seconds */
+  rawDt = 0;
+  /** cinematic slow-motion factor, driven by `CameraSystem`; 1 = real time.
+   * Scales `dt` (the simulation step) only — `t` and `sinceStart` stay real. */
+  timeScale = 1;
   /** seconds since the player started the run (0 until started) */
   sinceStart = 0;
 
@@ -23,7 +28,8 @@ export class Clock {
 
   tick(nowMs: number): void {
     this.t = nowMs / 1000;
-    this.dt = Math.min(this.maxStep, this.t - this.prev);
+    this.rawDt = Math.min(this.maxStep, this.t - this.prev);
+    this.dt = this.rawDt * this.timeScale;
     this.prev = this.t;
     this.sinceStart = this.startT < 0 ? 0 : this.t - this.startT;
   }

@@ -96,7 +96,11 @@ export class WhaleSystem implements System {
       });
       if (out.breachTurns > 0) {
         bus.emit("fx:shake", 6);
-        bus.emit("whale:breach", { flips: out.breachTurns, pos: { x, y: 0 } });
+        bus.emit("whale:breach", {
+          flips: out.breachTurns,
+          up: out.crossedUp,
+          pos: { x, y: 0 },
+        });
       }
     }
     if (out.crossedDown) {

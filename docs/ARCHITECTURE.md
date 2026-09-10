@@ -253,11 +253,11 @@ Scripts: `npm run dev` (Vite), `npm run build` (`eslint` → `tsc` → `vite bui
 list of **systems**, then runs one `requestAnimationFrame` loop:
 
 ```
-clock.tick(now)                         // dt clamped to 50 ms
+clock.tick(now)                         // dt clamped to 50 ms, then × timeScale
   if ctx.running:
     for each system: system.update(dt, ctx)
   input.frameEnd()                      // consume keydown edges
-  sync camera viewport, apply screen shake to the world container
+  sync camera viewport, apply camera roll + shake to the world container
   for each system: system.render(ctx)   // runs even while paused
 ```
 
@@ -320,7 +320,8 @@ Lifecycle: `game:start`, `game:over {won}`, `game:restart`, `game:pause`,
 Audio: `audio:volume`, `audio:call {f0,f1,dur,vol,delay?}`.
 Song/pod: `song:emitted {x,y,strength,friendly,chorus}`, `pod:answered`,
 `pod:joined`, `pod:lost`, `pod:chorus`.
-Whale: `whale:surfaced`, `whale:submerged`, `krill:fed`.
+Whale: `whale:surfaced {impactVy,pos}`, `whale:submerged {pos}`,
+`whale:breach {flips,up,pos}`, `krill:fed`.
 HUD/FX: `hint:show {text,secs}`, `fx:shake`, `fx:bubbles`.
 
 ## 4. Systems
@@ -337,7 +338,7 @@ HUD/FX: `hint:show {text,secs}`, `fx:shake`, `fx:bubbles`.
 | `SchoolSystem` | ✓ | Fish boids (cohesion/alignment/separation + whale avoidance). Cosmetic — not food. Reef schools (with a coral `home`) take cover in the coral as the whale nears and spill out again after. |
 | `ShipSystem` | ✓ | Advances ships along the lane. Noise footprint is read by `PodBrain`. |
 | `ParticleSystem` | ✓ | Bubble pool; integrates and culls. Listens for `fx:bubbles`. |
-| `CameraSystem` | ✓ | Lazy follow with velocity lead; zoom out with speed; decay screen shake. |
+| `CameraSystem` | ✓ | Cinematic director (`systems/camera/CameraRig.ts`): follow spring with an anticipatory velocity lead, speed-aware zoom, a subtle bank into turns, trauma-based shake, and event-driven "shots" — `breach` pulls wide + tilts + drops into wall-clock slow-mo (`clock.timeScale`), `submerged` punches back in, `surfaced` / `pod:*` ease wide briefly. |
 | `BackgroundRenderer` | render | Water column, sky, god-rays, marine snow, caustics, depth vignette, animated waterline. |
 | `TerrainRenderer` | render | Seabed spline + lit rim. |
 | `CoralRenderer` | render | Static coral growths on the shallow shelf/seamounts; ambient-lit, brightened by a sonar sweep. |
@@ -418,8 +419,10 @@ canvas; a level's `leg.finishX` may end sooner. Whale length 280 (28 m). Light:
   snow, terrain, coral, fish, krill, whales, ships, caustics, darkness (fill +
   grad), glow`; a screen-space `overlay` holds the vignette. Screen shake is applied to
   the world container, not per-layer.
-- **Camera** (`core/Camera.ts`) owns the world↔screen transform (`sx`/`sy`),
-  lazy-follows with a velocity-based lead, and eases zoom out as speed rises.
+- **Camera** (`core/Camera.ts`) owns the world↔screen transform (`sx`/`sy`) and
+  holds `x/y/scale/shake/rot`. All framing logic lives in `CameraSystem`'s
+  `CameraRig`; `rot` is applied to the world container by `Game` with a matching
+  overscan so the rotated corners never expose the canvas edge.
 - **Fish** (`render/FaunaRenderer.ts`): each school carries a `species` index
   into `config/species.ts`; the renderer resolves the `SpeciesProfile` (colour,
   size, `smoothstep` LOD ramp) and dispatches one fish body to

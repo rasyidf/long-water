@@ -7,24 +7,14 @@ export class Camera {
   scale = 1;
   /** current screen-shake amplitude in px, driven by CameraSystem */
   shake = 0;
+  /** world-space roll in radians, applied to the world container by `Game`
+   * (with a matching overscan so the corners never bleed). Driven by the
+   * `CameraRig`: a subtle bank into turns plus the breach whip. */
+  rot = 0;
 
   /** viewport size in CSS pixels, kept in sync by the Renderer each frame */
   vw = window.innerWidth;
   vh = window.innerHeight;
-
-  follow(
-    targetX: number,
-    targetY: number,
-    leadX: number,
-    leadY: number,
-    speed: number,
-    dt: number,
-  ): void {
-    this.x += (targetX + leadX - this.x) * Math.min(1, dt * 3.1);
-    this.y += (targetY + leadY - this.y) * Math.min(1, dt * 2.6);
-    const want = this.vw / (2200 + Math.min(700, speed * 1.2));
-    this.scale += (want - this.scale) * Math.min(1, dt * 1.8);
-  }
 
   sx(worldX: number): number {
     return (worldX - this.x) * this.scale + this.vw / 2;

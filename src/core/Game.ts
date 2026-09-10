@@ -271,9 +271,20 @@ export class Game {
     }
     ctx.input.frameEnd();
 
-    const sh = ctx.camera.shake;
-    ctx.layers.world.x = sh > 0.4 ? (Math.random() - 0.5) * sh : 0;
-    ctx.layers.world.y = sh > 0.4 ? (Math.random() - 0.5) * sh : 0;
+    // camera roll + shake ride the world container. Roll pivots about screen
+    // centre and is paired with a small overscan so the rotated corners never
+    // expose the canvas edge; shake is a per-frame random offset on top.
+    const cam = ctx.camera;
+    const w = ctx.layers.world;
+    const sh = cam.shake;
+    const jx = sh > 0.4 ? (Math.random() - 0.5) * sh : 0;
+    const jy = sh > 0.4 ? (Math.random() - 0.5) * sh : 0;
+    const cx = cam.vw / 2;
+    const cy = cam.vh / 2;
+    w.pivot.set(cx, cy);
+    w.rotation = cam.rot + (sh > 0.4 ? (Math.random() - 0.5) * sh * 0.0006 : 0);
+    w.scale.set(1 + Math.min(0.05, Math.abs(cam.rot) * 4));
+    w.position.set(cx + jx, cy + jy);
 
     this.renderScene();
 

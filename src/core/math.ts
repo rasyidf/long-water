@@ -8,6 +8,20 @@ export function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t;
 }
 
+/**
+ * Framerate-independent approach: eases `cur` toward `target`, closing the
+ * remaining gap at rate `hz` (larger = snappier). Stable for any `dt`, unlike
+ * the `cur += (target - cur) * k` form which overshoots once `k > 1`.
+ */
+export function expApproach(
+  cur: number,
+  target: number,
+  hz: number,
+  dt: number,
+): number {
+  return target + (cur - target) * Math.exp(-hz * dt);
+}
+
 export function clamp01(v: number): number {
   return v < 0 ? 0 : v > 1 ? 1 : v;
 }
