@@ -30,6 +30,102 @@ Implemented in one rewrite of `ProceduralWhaleView.ts` (+ `WhaleView.ts`, `Whale
 
 ---
 
+## Progress — 2026-09-10 (second pass: rolled cross-section rewrite)
+
+Second rewrite of `ProceduralWhaleView.ts` (+ the `WhaleSection` list in
+`WhaleView.ts`, + the ProcGen designer). Verified: `tsc` + `eslint .` clean, and
+reviewed at roll 0° / 45° / 90° / 180° in `/procgen.html`.
+**Not yet verified in-game.**
+
+The roll model was replaced rather than patched. The body is now an offset
+ellipse in cross-section — vertical semi-axis `mA`, ventral centre offset `mC`,
+lateral semi-axis `mB` — and rolling it is an exact 2D projection of that
+ellipse instead of a stack of blend factors (`upK` / `foreK` / `spread` /
+`flipped` / `noseWrap` are all gone). The pieces:
+
+- `sect(t)` — memoised cross-section, plus the projected half-extent `mR` and
+  the cross-section angle `mD` that has rolled onto the near silhouette edge.
+- `edgeTop` / `edgeBot` — exact silhouette. The body genuinely narrows edge-on
+  and the profile *mirrors* past 90° instead of lerping between two halves.
+- `prpAt(t, psi)` / `faceAt(t, psi)` / `bandAt(t, centre, half)` — every skin
+  marking is pinned to a cross-section angle (0 = ventral keel, ±π/2 = flanks,
+  ±π = dorsal ridge) and clipped to the visible half. Belly, mottling, pleats,
+  eye, gape and blowhole therefore roll as one body and leave view on their own.
+- `at3(t, fwd, ven, lat)` + `depth3(ven, lat)` — body-frame projection for the
+  fins, with far/near pectoral **and** far/near dorsal fin sorted by depth.
+- Lighting split from pigment: "light from above" and "form shadow underneath"
+  are screen-space (the sun stays overhead through a roll); belly, mottling and
+  pleats are body-space. The old code gated the dorsal sheen on the roll, which
+  is why an inverted whale was lit from underneath.
+
+Anatomy / beauty in the same pass: stylised girth (`GIRTH`), straighter back
+over a deeper pleated throat (`topFrac`), splash-guard bump on the dorsal line,
+rounded rostrum tip, laterally-compressed blade-like tail stock (`latK`), throat
+pleats, gape line + eye highlight + blowhole slit, pale belly bounded above by
+the gape (this is what fixed the white-block head), falcate dorsal fin, flipper
+rebuilt on separate span/chord axes, and a fluke modelled in the whale's
+horizontal plane with its pitch driven by the tail's own bow.
+
+Designer tool: `spin` (deg/s auto-roll), `wave` (stroke amplitude), a **roll
+sheet** button that stacks seven rolls at once, and a `window.procgen.set({…})`
+hook that [scripts/shot-rolls.mjs](../scripts/shot-rolls.mjs) drives headlessly.
+
+**Closes or supersedes:** #2 (properly, via the ellipse projection), #9 (fluke
+pitch from pose), #10, #11, #12, #13, #14 (decision made — see below), #16
+(belly now runs out gracefully before the peduncle), #23, #24, #25.
+
+---
+
+## Next up — whale visuals
+
+Ordered. Items 1–2 are the ones that could change what shipped.
+
+### N1. Review the two deliberate cheats in the roll
+- **Status:** ☐ Not started
+- **Why:** An honest edge-on fluke is a hairline at level roll, which reads as
+  "no tail". `SPREAD = 0.36` floors the fluke's span projection so the tail
+  always reads as a tail; the dorsal fin, by contrast, uses pure `cos` and does
+  vanish edge-on (correct — a sagittal blade projects inside the body outline).
+- **Do:** Sweep `SPREAD` in `/procgen.html` with the roll sheet on and settle on
+  a value. This is the resolution of roadmap #14: **authentic projection + a
+  legibility floor**, rather than either option as originally framed.
+
+### N2. Verify in the real game
+- **Status:** ☐ Not started
+- **Why:** Everything so far was judged in `/procgen.html` only. Roll is
+  exercised in play in exactly one place — the breach barrel roll in
+  `systems/whale/locomotion.ts`, which drives `roll` + `rollBlend`.
+- **Do:** Drive it headlessly (hold `KeyS` ~5 s to dive, then `KeyW` + repeated
+  `ShiftLeft` taps ~6 s to breach) and watch a full 360° through the arc. Check
+  that `rollK < 1` still eases cleanly — the basis is renormalised so the
+  projection stays exact at every blend value, but it has not been seen mid-ease
+  in motion.
+
+### N3. Pod and calf pass
+- **Status:** ☐ Not started
+- **Why:** The profile was rewritten; `juv` up to 1 and `podGirth` (~30–40, vs
+  the player's fixed 38) have not been eyeballed since.
+- **Do:** Check `juv` 0.5 / 0.8 / 1.0 in the tool, then a real pod in-game.
+  Roadmap #8 (juvenile proportions) is still only partly addressed: the dorsal
+  fin and the profile take `juv`, the fluke and eye placement do not.
+
+### N4. Perf sanity on the shading tiers
+- **Status:** ☐ Not started
+- **Why:** The light/shadow layers add ~6 band polygons per whale per frame on
+  top of the hull and belly bands. The `mottle` / `detail` LOD ramps gate the
+  extra tiers, so distant pod whales draw one each — but this has not been
+  measured.
+- **Do:** Frame-time check with a full pod on screen. If it bites, the tiers are
+  the first thing to fold into #26 (Mesh + shader).
+
+### N5. Still open from the first pass
+- #3 fill-object reuse, #15 layer alpha (needs an interface change), #18 true
+  LOD hysteresis (needs per-whale state), #22 blue-whale colouring (wants a
+  side-by-side review), #26 Mesh + shader, #27 pure geometry + unit tests (no
+  test runner installed — would need vitest), #28 done.
+
+---
+
 ## Bugs (Breaking/Visual Corruption)
 
 ### 1. Hull outline self-intersection at rostrum
@@ -317,4 +413,4 @@ Use checkboxes above to mark progress. Update status from "Not started" → "In 
 
 For complex items, consider opening a GitHub issue linked back to this doc.
 
-**Last updated:** 2026-09-10
+**Last updated:** 2026-09-10 (second pass — see “Next up — whale visuals”)

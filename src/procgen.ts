@@ -19,15 +19,18 @@ import whaleSrc from "./render/whale/ProceduralWhaleView.ts?raw";
 // --- sections, in draw order (matches ProceduralWhaleView) -------------------
 const SECTIONS: { id: WhaleSection; label: string; marker: RegExp }[] = [
   { id: "farPectoral", label: "far pectoral", marker: /Pectoral flipper/ },
+  { id: "farDorsal", label: "far dorsal fin", marker: /-{4,} Dorsal fin/ },
   { id: "fluke", label: "fluke", marker: /-{4,} Fluke/ },
   { id: "hull", label: "hull", marker: /Main body hull/ },
-  { id: "sheen", label: "dorsal sheen", marker: /Sunlit dorsal sheen/ },
   { id: "belly", label: "belly countershade", marker: /Pale belly counter/ },
+  { id: "pleats", label: "ventral pleats", marker: /Ventral pleats/ },
   { id: "mottle", label: "skin mottling", marker: /Dappled skin mottling/ },
+  { id: "sheen", label: "light from above", marker: /Light from above/ },
+  { id: "shade", label: "form shadow", marker: /Form shadow underneath/ },
+  { id: "dorsal", label: "dorsal fin", marker: /-{4,} Dorsal fin/ },
   { id: "nearPectoral", label: "near pectoral", marker: /Pectoral flipper/ },
-  { id: "dorsal", label: "dorsal fin", marker: /Small falcate dorsal fin/ },
-  { id: "rim", label: "rim light", marker: /Dorsal rim light/ },
-  { id: "face", label: "eye / jaw / blowhole", marker: /Eye, jaw line/ },
+  { id: "rim", label: "rim light", marker: /-{4,} Rim light/ },
+  { id: "face", label: "eye / mouth / blowhole", marker: /Eye, mouth line/ },
 ];
 
 /** slice `ProceduralWhaleView.ts` into blocks bounded by its `// ----` headers */
@@ -55,18 +58,34 @@ const SOURCE = sliceSource(whaleSrc);
 
 // --- live params -----------------------------------------------------------
 type Key =
-  "width" | "juv" | "rollDeg" | "rollK" | "alpha" | "seed" | "zoom" | "bend";
-const params: Record<Key, number> & { swim: boolean; facing: 1 | -1 } = {
+  | "width"
+  | "juv"
+  | "rollDeg"
+  | "spin"
+  | "rollK"
+  | "alpha"
+  | "seed"
+  | "zoom"
+  | "bend"
+  | "wave";
+const params: Record<Key, number> & {
+  swim: boolean;
+  facing: 1 | -1;
+  sheet: boolean;
+} = {
   width: 38,
   juv: 0,
   rollDeg: 0,
+  spin: 0,
   rollK: 1,
   alpha: 1,
   seed: 3,
   zoom: 1.7,
   bend: 0,
+  wave: 7,
   swim: true,
   facing: 1,
+  sheet: false,
 };
 const DEFAULTS = { ...params };
 
@@ -80,11 +99,13 @@ const SLIDERS: {
   { key: "width", min: 8, max: 72, step: 1 },
   { key: "juv", min: 0, max: 1, step: 0.01 },
   { key: "rollDeg", min: -180, max: 180, step: 1, fmt: (v) => `${v}°` },
+  { key: "spin", min: -180, max: 180, step: 5, fmt: (v) => `${v}°/s` },
   { key: "rollK", min: 0, max: 1, step: 0.01 },
   { key: "alpha", min: 0.1, max: 1, step: 0.01 },
   { key: "seed", min: 0, max: 24, step: 1 },
   { key: "zoom", min: 0.3, max: 4, step: 0.05, fmt: (v) => `${v.toFixed(2)}×` },
   { key: "bend", min: -1, max: 1, step: 0.01 },
+  { key: "wave", min: 0, max: 20, step: 0.5 },
 ];
 
 // --- pixi scene ----------------------------------------------------------
@@ -151,7 +172,7 @@ function rebuildSpine(dtMs: number): void {
     base[i].y = Math.sin(t * Math.PI) * params.bend * 130;
   }
   if (params.swim) {
-    applyUndulation(spine, base, phase, 7);
+    applyUndulation(spine, base, phase, params.wave);
   } else {
     for (let i = 0; i < base.length; i++) {
       spine[i].x = base[i].x;
@@ -161,34 +182,56 @@ function rebuildSpine(dtMs: number): void {
 }
 
 // --- frame -----------------------------------------------------------
+/** roll offsets (deg) of the contact-sheet rows, top to bottom */
+const SHEET = [0, 30, 60, 90, 120, 150, 180];
+
 app.ticker.add((ticker) => {
+  const dt = ticker.deltaMS / 1000;
   rebuildSpine(ticker.deltaMS);
+
+  // `spin` drives the roll continuously, so a barrel roll can be watched
+  // rather than scrubbed. It writes back through the roll slider.
+  if (params.spin !== 0) {
+    let r = params.rollDeg + params.spin * dt;
+    r = ((((r + 180) % 360) + 360) % 360) - 180;
+    params.rollDeg = Math.round(r);
+    syncSlider("rollDeg");
+  }
 
   cam.vw = app.renderer.width / app.renderer.resolution;
   cam.vh = app.renderer.height / app.renderer.resolution;
-  cam.scale = params.zoom;
+  const rows = params.sheet ? SHEET.length : 1;
+  cam.scale = params.zoom / (params.sheet ? 2.6 : 1);
 
   for (const g of gfx.values()) g.clear();
   sink.clear();
 
-  view.draw(
-    sink,
-    spine,
-    {
-      scale: 1,
-      facing: params.facing,
-      skin: C.skin,
-      belly: C.belly,
-      alpha: params.alpha,
-      width: params.width,
-      juv: params.juv,
-      roll: (params.rollDeg * Math.PI) / 180,
-      rollK: params.rollK,
-      seed: params.seed,
-      layer: (s) => gfx.get(s),
-    },
-    cam,
-  );
+  // In sheet mode the same body is drawn once per row at a rising roll, so the
+  // whole rotation can be judged in one glance.
+  const gap = 150 / cam.scale;
+  for (let r = 0; r < rows; r++) {
+    cam.y = (r - (rows - 1) / 2) * -gap;
+    view.draw(
+      sink,
+      spine,
+      {
+        scale: 1,
+        facing: params.facing,
+        skin: C.skin,
+        belly: C.belly,
+        alpha: params.alpha,
+        width: params.width,
+        juv: params.juv,
+        roll:
+          ((params.rollDeg + (params.sheet ? SHEET[r] : 0)) * Math.PI) / 180,
+        rollK: params.rollK,
+        seed: params.seed,
+        layer: (sc) => gfx.get(sc),
+      },
+      cam,
+    );
+  }
+  cam.y = 0;
 
   for (const [id, g] of gfx) {
     g.visible = !pinnedOff.has(id);
@@ -199,6 +242,17 @@ app.ticker.add((ticker) => {
 // --- controls UI ------------------------------------------------------
 const slidersEl = document.getElementById("sliders")!;
 const outputs = new Map<Key, HTMLOutputElement>();
+const inputs = new Map<Key, HTMLInputElement>();
+
+/** push a param the code changed (spin, reset) back into its slider + readout */
+function syncSlider(key: Key): void {
+  const input = inputs.get(key);
+  if (input) input.value = String(params[key]);
+  const out = outputs.get(key);
+  const meta = SLIDERS.find((s) => s.key === key);
+  if (out)
+    out.textContent = meta?.fmt ? meta.fmt(params[key]) : String(params[key]);
+}
 
 for (const s of SLIDERS) {
   const wrap = document.createElement("div");
@@ -221,6 +275,7 @@ for (const s of SLIDERS) {
   });
   render();
   outputs.set(s.key, out);
+  inputs.set(s.key, input);
   wrap.append(label, out, input);
   slidersEl.appendChild(wrap);
 }
@@ -237,20 +292,19 @@ swimBtn.addEventListener("click", () => {
   params.swim = !params.swim;
   swimBtn.classList.toggle("on", params.swim);
 });
+const sheetBtn = document.getElementById("sheet") as HTMLButtonElement;
+sheetBtn.addEventListener("click", () => {
+  params.sheet = !params.sheet;
+  sheetBtn.classList.toggle("on", params.sheet);
+});
+
 resetBtn.addEventListener("click", () => {
   Object.assign(params, DEFAULTS);
   pinnedOff = new Set();
-  for (const s of SLIDERS) {
-    const input = slidersEl.querySelector<HTMLInputElement>(
-      `.ctl:nth-child(${SLIDERS.indexOf(s) + 1}) input`,
-    );
-    if (input) input.value = String(params[s.key]);
-    const out = outputs.get(s.key);
-    if (out)
-      out.textContent = s.fmt ? s.fmt(params[s.key]) : String(params[s.key]);
-  }
+  for (const s of SLIDERS) syncSlider(s.key);
   facingBtn.textContent = "facing ►";
   swimBtn.classList.add("on");
+  sheetBtn.classList.remove("on");
   syncPanels();
 });
 
@@ -299,3 +353,15 @@ function syncPanels(): void {
 }
 
 syncPanels();
+
+// hook for the screenshot scripts in `scripts/` — set params without hunting
+// for slider DOM nodes
+Object.assign(window, {
+  procgen: {
+    params,
+    set(patch: Partial<typeof params>): void {
+      Object.assign(params, patch);
+      for (const s of SLIDERS) syncSlider(s.key);
+    },
+  },
+});

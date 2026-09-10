@@ -34,16 +34,19 @@ export interface WhaleDrawOptions {
   layer?: (section: WhaleSection) => Graphics | undefined;
 }
 
-/** the named draw sections of `ProceduralWhaleView`, in draw order */
+/** the named draw sections of `ProceduralWhaleView`, in draw / z order */
 export type WhaleSection =
   | "farPectoral"
+  | "farDorsal"
   | "fluke"
   | "hull"
-  | "sheen"
   | "belly"
+  | "pleats"
   | "mottle"
-  | "nearPectoral"
+  | "sheen"
+  | "shade"
   | "dorsal"
+  | "nearPectoral"
   | "rim"
   | "face";
 
