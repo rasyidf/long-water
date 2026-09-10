@@ -12,6 +12,7 @@ export default defineConfig({
       input: {
         main: "index.html", // the game
         preview: "preview.html", // a static object gallery for renderer tweaks
+        procgen: "procgen.html", // live single-entity procgen designer
       },
     },
   },

@@ -2,7 +2,7 @@ import type { Graphics } from "pixi.js";
 import type { Camera } from "../../core/Camera";
 import { clamp01, lerp, smoothstep, type Vec2 } from "../../core/math";
 import { mixColor } from "../color";
-import type { WhaleDrawOptions, WhaleView } from "./WhaleView";
+import type { WhaleDrawOptions, WhaleSection, WhaleView } from "./WhaleView";
 
 const BODY_END = 0.94;
 /** hull segments per side at full detail; the point pools are sized for this */
@@ -113,6 +113,9 @@ export class ProceduralWhaleView implements WhaleView {
     const seed = opts.seed ?? 0;
     const last = sp.length - 1;
     if (last < 1) return;
+
+    // designer hook: route a named section to its own Graphics, or the shared one
+    const pick = (s: WhaleSection): Graphics => opts.layer?.(s) ?? g;
 
     this.palette(skin, belly);
 
@@ -232,11 +235,13 @@ export class ProceduralWhaleView implements WhaleView {
     const blotch = this.cBlotch;
     const midTone = this.cMid;
 
-    // Long, slender, pointed pectoral flipper, angled down and back off the
-    // forebody. Drawn before the hull when it falls on the far side of the body
-    // (so the body simply covers it), after the hull when it's on the near side.
+    // ---------- Pectoral flipper ----------
+    // Long, slender, pointed, angled down and back off the forebody. Drawn
+    // before the hull when it falls on the far side of the body (so the body
+    // simply covers it), after the hull when it's on the near side.
     const drawPectoral = (): void => {
       if (detail <= 0.02 || Math.abs(cr) <= 0.04) return;
+      const pg = pick(cr < 0 ? "farPectoral" : "nearPectoral");
       const t = 0.28;
       // signed girth — flips to the dorsal side once the whale rolls past 90°
       const bf = bh(t) * cr * foreK;
@@ -247,15 +252,15 @@ export class ProceduralWhaleView implements WhaleView {
       const tipX = at(t, -46 * featK, bf * 1.72, this.w0).x;
       const tipY = this.w0.y;
 
-      g.moveTo(rfX, rfY);
+      pg.moveTo(rfX, rfY);
       at(t, -12 * featK, bf * 1.02, this.w0); // leading edge, gently convex
-      g.quadraticCurveTo(this.w0.x, this.w0.y, tipX, tipY);
+      pg.quadraticCurveTo(this.w0.x, this.w0.y, tipX, tipY);
       at(t, -33 * featK, bf * 1.32, this.w0); // trailing edge back to the root
-      g.quadraticCurveTo(this.w0.x, this.w0.y, rbX, rbY);
+      pg.quadraticCurveTo(this.w0.x, this.w0.y, rbX, rbY);
       at(t, 0, bf * 0.16, this.w0); // root fillet
-      g.quadraticCurveTo(this.w0.x, this.w0.y, rfX, rfY);
-      g.closePath();
-      g.fill({
+      pg.quadraticCurveTo(this.w0.x, this.w0.y, rfX, rfY);
+      pg.closePath();
+      pg.fill({
         color: darkSkin,
         alpha:
           cr < 0
@@ -273,6 +278,7 @@ export class ProceduralWhaleView implements WhaleView {
     // swept-back blades, pointed tips, concave trailing edge and a centre notch.
     // Drawn before the hull so the tail stock covers the darker root seam.
     {
+      const fg = pick("fluke");
       const rootT = BODY_END;
       const span = 22 * scale * foreK * featK;
       const sweep = 15 * scale * featK;
@@ -289,45 +295,49 @@ export class ProceduralWhaleView implements WhaleView {
       const botX = this.w0.x;
       const botY = this.w0.y;
 
-      g.moveTo(rx, ry);
+      fg.moveTo(rx, ry);
       at(rootT, 3 * featK, -span * 0.55, this.w0); // leading edge, root → top tip
-      g.quadraticCurveTo(this.w0.x, this.w0.y, topX, topY);
+      fg.quadraticCurveTo(this.w0.x, this.w0.y, topX, topY);
       at(rootT, -sweep * 1.35, -span * 0.34, this.w0); // concave trailing edge
-      g.quadraticCurveTo(this.w0.x, this.w0.y, notchX, notchY);
+      fg.quadraticCurveTo(this.w0.x, this.w0.y, notchX, notchY);
       at(rootT, -sweep * 1.35, span * 0.34, this.w0);
-      g.quadraticCurveTo(this.w0.x, this.w0.y, botX, botY);
+      fg.quadraticCurveTo(this.w0.x, this.w0.y, botX, botY);
       at(rootT, 3 * featK, span * 0.55, this.w0);
-      g.quadraticCurveTo(this.w0.x, this.w0.y, rx, ry);
-      g.closePath();
-      g.fill({ color: finSkin, alpha });
+      fg.quadraticCurveTo(this.w0.x, this.w0.y, rx, ry);
+      fg.closePath();
+      fg.fill({ color: finSkin, alpha });
     }
 
     // ---------- Main body hull ----------
     // Wound as one loop: top edge aft, bottom edge forward, then the head cap.
     // (The cap points come last so the outline never crosses itself at the
     // rostrum, which would confuse earcut and notch the snout.)
-    let n = 0;
-    for (let s = 1; s <= STEPS; s++) {
-      const t = (s / STEPS) * BODY_END;
-      at(t, 0, -th(t) * foreK, this.outline[n++]);
+    {
+      const hg = pick("hull");
+      let n = 0;
+      for (let s = 1; s <= STEPS; s++) {
+        const t = (s / STEPS) * BODY_END;
+        at(t, 0, -th(t) * foreK, this.outline[n++]);
+      }
+      for (let s = STEPS; s >= 1; s--) {
+        const t = (s / STEPS) * BODY_END;
+        at(t, 0, bh(t) * foreK, this.outline[n++]);
+      }
+      at(0.01, 0, bh(0.01) * foreK, this.outline[n++]);
+      at(0, 1, 0, this.outline[n++]);
+      at(0.01, 0, -th(0.01) * foreK, this.outline[n++]);
+      drawBlob(hg, this.outline, n);
+      hg.fill({
+        color: backCam > 0.01 ? mixColor(skin, 0x000000, 0.14 * backCam) : skin,
+        alpha,
+      });
     }
-    for (let s = STEPS; s >= 1; s--) {
-      const t = (s / STEPS) * BODY_END;
-      at(t, 0, bh(t) * foreK, this.outline[n++]);
-    }
-    at(0.01, 0, bh(0.01) * foreK, this.outline[n++]);
-    at(0, 1, 0, this.outline[n++]);
-    at(0.01, 0, -th(0.01) * foreK, this.outline[n++]);
-    drawBlob(g, this.outline, n);
-    g.fill({
-      color: backCam > 0.01 ? mixColor(skin, 0x000000, 0.14 * backCam) : skin,
-      alpha,
-    });
 
     // shared band extent for the shading layers below
     const lo = 0.02;
     const hi = BODY_END - 0.08;
     const drawBand = (
+      dg: Graphics,
       topFn: (t: number) => number,
       botFn: (t: number) => number,
       color: number,
@@ -343,13 +353,14 @@ export class ProceduralWhaleView implements WhaleView {
         const t = lo + (s / STEPS) * (hi - lo);
         at(t, 0, topFn(t) * foreK, this.pale[m++]);
       }
-      drawBlob(g, this.pale, m);
-      g.fill({ color, alpha: Math.min(1, a) });
+      drawBlob(dg, this.pale, m);
+      dg.fill({ color, alpha: Math.min(1, a) });
     };
 
     // ---------- Sunlit dorsal sheen ----------
     // a lighter wash hugging the top edge, so the back reads as lit from above
     drawBand(
+      pick("sheen"),
       (t) => -th(t) * 0.98,
       (t) => -th(t) * (0.1 + 0.34 * smoothstep(0.05, 0.75, t)),
       backSheen,
@@ -363,6 +374,7 @@ export class ProceduralWhaleView implements WhaleView {
     // past a half roll they sit on the upper flank; as the back comes round they
     // fade and the dark hull shows instead.
     {
+      const bg = pick("belly");
       const spread = Math.max(bellyCam, flipped);
       const bellyLevel = (t: number): number => {
         const base = bh(t) * (0.46 - 0.14 * smoothstep(0.08, 0.5, t));
@@ -377,12 +389,14 @@ export class ProceduralWhaleView implements WhaleView {
       };
 
       drawBand(
+        bg,
         (t) => bellyLevel(t) - th(t) * 0.24,
         bellyOuter,
         midTone,
         alpha * 0.5 * (1 - backCam),
       );
       drawBand(
+        bg,
         bellyLevel,
         bellyOuter,
         belly,
@@ -397,6 +411,7 @@ export class ProceduralWhaleView implements WhaleView {
     // over the whole girth as the back rolls round.
     const mottleShow = clamp01(cr + backCam);
     if (mottle > 0.02 && mottleShow > 0.02) {
+      const mg = pick("mottle");
       const flecks = 4 + Math.round(9 * mottle);
       for (let k = 0; k < flecks; k++) {
         const r1 = hash01(k + 0.5, seed);
@@ -405,8 +420,8 @@ export class ProceduralWhaleView implements WhaleView {
         const t = 0.12 + r1 * 0.74;
         const vy = -th(t) * (0.85 - r2 * (0.95 + 0.8 * backCam));
         at(t, (r3 - 0.5) * 12 * featK, vy * foreK, this.w0);
-        g.circle(this.w0.x, this.w0.y, (1.6 + r3 * 3.4) * px);
-        g.fill({
+        mg.circle(this.w0.x, this.w0.y, (1.6 + r3 * 3.4) * px);
+        mg.fill({
           color: blotch,
           // fade each fleck in with the mottle ramp instead of popping on
           alpha:
@@ -425,6 +440,7 @@ export class ProceduralWhaleView implements WhaleView {
     // ---------- Small falcate dorsal fin ----------
     // a stubby, blunt hook set three-quarters of the way back
     {
+      const dg = pick("dorsal");
       const t = 0.72;
       const k = cr * foreK; // points up level, edge-on at 90°, down when inverted
       const h = (th(t) * 0.8 + 3.5) * (1 - 0.22 * juv);
@@ -435,15 +451,15 @@ export class ProceduralWhaleView implements WhaleView {
       const tpX = at(t - 0.018, -3 * featK, -(th(t) + h) * k, this.w0).x;
       const tpY = this.w0.y;
 
-      g.moveTo(frX, frY);
+      dg.moveTo(frX, frY);
       at(t + 0.02, 2 * featK, -(th(t) + h * 0.55) * k, this.w0); // convex leading edge
-      g.quadraticCurveTo(this.w0.x, this.w0.y, tpX, tpY);
+      dg.quadraticCurveTo(this.w0.x, this.w0.y, tpX, tpY);
       at(t - 0.035, -4 * featK, -(th(t) + h * 0.5) * k, this.w0); // concave trailing edge
-      g.quadraticCurveTo(this.w0.x, this.w0.y, bkX, bkY);
+      dg.quadraticCurveTo(this.w0.x, this.w0.y, bkX, bkY);
       at(t - 0.005, 0, -th(t) * 0.5 * k, this.w0);
-      g.quadraticCurveTo(this.w0.x, this.w0.y, frX, frY);
-      g.closePath();
-      g.fill({
+      dg.quadraticCurveTo(this.w0.x, this.w0.y, frX, frY);
+      dg.closePath();
+      dg.fill({
         color: finSkin,
         alpha: alpha * Math.min(1, Math.abs(cr) + 0.1),
       });
@@ -453,19 +469,20 @@ export class ProceduralWhaleView implements WhaleView {
     // a thin bright line where the overhead light catches the top of the back.
     // The sun is always above, so this stays on the screen-top edge at any roll.
     if (mottle > 0.03) {
+      const rg = pick("rim");
       const RS = 12;
       let b = 0;
       for (let s = 0; s <= RS; s++) {
         const t = 0.05 + (s / RS) * 0.8;
         at(t, 0, -th(t) * 0.93 * foreK, this.outline[b++]);
       }
-      g.moveTo(this.outline[0].x, this.outline[0].y);
+      rg.moveTo(this.outline[0].x, this.outline[0].y);
       for (let s = 1; s < b; s++) {
         const c = this.outline[s - 1];
         const d = this.outline[s];
-        g.quadraticCurveTo(c.x, c.y, (c.x + d.x) / 2, (c.y + d.y) / 2);
+        rg.quadraticCurveTo(c.x, c.y, (c.x + d.x) / 2, (c.y + d.y) / 2);
       }
-      g.stroke({
+      rg.stroke({
         width: Math.max(0.8, 1.3 * px),
         color: this.cRim,
         alpha: alpha * 0.42 * mottle * clamp01(Math.abs(cr) + backCam * 0.5),
@@ -476,6 +493,7 @@ export class ProceduralWhaleView implements WhaleView {
     // all live on whichever flank faces the camera — gone only when the whale
     // turns exactly edge-on
     if (faceDetail > 0.02 && Math.abs(cr) > 0.05) {
+      const fcg = pick("face");
       const ek = cr * foreK; // signed — mirrors to the visible flank past 90°
       const fk = faceDetail * clamp01(Math.abs(cr));
 
@@ -485,10 +503,10 @@ export class ProceduralWhaleView implements WhaleView {
       const snoutY = this.w0.y;
       const jawX = at(0.22, -2 * featK, bh(0.22) * 0.34 * ek, this.w0).x;
       const jawY = this.w0.y;
-      g.moveTo(snoutX, snoutY);
+      fcg.moveTo(snoutX, snoutY);
       at(0.12, 0, bh(0.12) * 0.28 * ek, this.w0);
-      g.quadraticCurveTo(this.w0.x, this.w0.y, jawX, jawY);
-      g.stroke({
+      fcg.quadraticCurveTo(this.w0.x, this.w0.y, jawX, jawY);
+      fcg.stroke({
         width: Math.max(0.8, 1.2 * px),
         color: this.cGape,
         alpha: alpha * 0.5 * fk,
@@ -496,13 +514,13 @@ export class ProceduralWhaleView implements WhaleView {
 
       // eye, low and just behind the corner of the mouth
       at(0.17, -2 * featK, bh(0.17) * 0.02 * ek, this.w0);
-      g.circle(this.w0.x, this.w0.y, Math.max(1.2, 1.7 * px));
-      g.fill({ color: 0x05090d, alpha: alpha * fk });
+      fcg.circle(this.w0.x, this.w0.y, Math.max(1.2, 1.7 * px));
+      fcg.fill({ color: 0x05090d, alpha: alpha * fk });
 
       // blowhole splash-guard mark on top of the head
       at(0.09, 0, -th(0.09) * 0.72 * ek, this.w0);
-      g.circle(this.w0.x, this.w0.y, Math.max(0.9, 1.3 * px));
-      g.fill({ color: this.cBlow, alpha: alpha * 0.7 * fk });
+      fcg.circle(this.w0.x, this.w0.y, Math.max(0.9, 1.3 * px));
+      fcg.fill({ color: this.cBlow, alpha: alpha * 0.7 * fk });
     }
   }
 }

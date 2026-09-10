@@ -28,7 +28,24 @@ export interface WhaleDrawOptions {
   rollK?: number;
   /** per-whale seed so each body in a pod gets its own skin mottling. */
   seed?: number;
+  /** designer hook: returns the `Graphics` a named draw section should render
+   * into, so a tool can isolate / highlight each block. Undefined (the default,
+   * and every in-game call) → the section draws into the shared `g`. */
+  layer?: (section: WhaleSection) => Graphics | undefined;
 }
+
+/** the named draw sections of `ProceduralWhaleView`, in draw order */
+export type WhaleSection =
+  | "farPectoral"
+  | "fluke"
+  | "hull"
+  | "sheen"
+  | "belly"
+  | "mottle"
+  | "nearPectoral"
+  | "dorsal"
+  | "rim"
+  | "face";
 
 export interface WhaleView {
   /** draw one whale into `g`; `spine` is the undulating display chain */
