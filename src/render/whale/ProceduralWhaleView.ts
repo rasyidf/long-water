@@ -378,7 +378,7 @@ export class ProceduralWhaleView implements WhaleView {
       const spread = Math.max(bellyCam, flipped);
       const bellyLevel = (t: number): number => {
         const base = bh(t) * (0.46 - 0.14 * smoothstep(0.08, 0.5, t));
-        const lift = smoothstep(0.36, 0.04, t); // rises toward the rostrum
+        const lift = smoothstep(0.25, 0.04, t); // rises toward the rostrum
         let top = base + (-th(t) * 0.42 - base) * lift;
         top = top + (-th(t) - top) * spread;
         return top;
@@ -500,27 +500,14 @@ export class ProceduralWhaleView implements WhaleView {
       // long curved gape from the rostrum tip, ending just below and ahead of
       // the eye
       const snoutX = at(0.005, 0, bh(0.005) * 0.12 * ek, this.w0).x;
-      const snoutY = this.w0.y;
-      const jawX = at(0.22, -2 * featK, bh(0.22) * 0.34 * ek, this.w0).x;
-      const jawY = this.w0.y;
-      fcg.moveTo(snoutX, snoutY);
-      at(0.12, 0, bh(0.12) * 0.28 * ek, this.w0);
-      fcg.quadraticCurveTo(this.w0.x, this.w0.y, jawX, jawY);
-      fcg.stroke({
-        width: Math.max(0.8, 1.2 * px),
-        color: this.cGape,
-        alpha: alpha * 0.5 * fk,
-      });
+      const snoutY = this.w0.y; 
+      fcg.moveTo(snoutX, snoutY); 
 
       // eye, low and just behind the corner of the mouth
-      at(0.17, -2 * featK, bh(0.17) * 0.02 * ek, this.w0);
+      at(0.18, -2 * featK, bh(0.18) * 0.02 * ek, this.w0);
       fcg.circle(this.w0.x, this.w0.y, Math.max(1.2, 1.7 * px));
       fcg.fill({ color: 0x05090d, alpha: alpha * fk });
-
-      // blowhole splash-guard mark on top of the head
-      at(0.09, 0, -th(0.09) * 0.72 * ek, this.w0);
-      fcg.circle(this.w0.x, this.w0.y, Math.max(0.9, 1.3 * px));
-      fcg.fill({ color: this.cBlow, alpha: alpha * 0.7 * fk });
+ 
     }
   }
 }

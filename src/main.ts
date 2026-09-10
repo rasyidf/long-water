@@ -15,8 +15,9 @@ const PROGRESS: Record<BootPhase, number> = {
   ready: 100,
 };
 
-/** keep the two-icon splash on screen at least this long so it never flashes */
-const MIN_SPLASH_MS = 2000;
+/** keep the splash on screen at least this long so the two studio bumpers →
+ *  logo sequence plays out and never flashes */
+const MIN_SPLASH_MS = 3000;
 const bootStart = performance.now();
 
 function setProgress(pct: number): void {
