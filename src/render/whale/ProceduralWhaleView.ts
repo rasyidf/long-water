@@ -12,14 +12,14 @@ const MAX_STEPS = 44;
  * the head takes up more of the body and is blunter, the forebody stays full,
  * and the tail tapers less. */
 function profile(t: number, w: number, juv = 0): number {
-  // Blunt head — shorter and rounder on a calf
-  const head = Math.pow(clamp01(t / (0.16 + juv * 0.08)), 0.45 - juv * 0.16);
+  // Tapered rostrum — shorter and rounder on a calf, finer at the tip on an adult
+  const head = Math.pow(clamp01(t / (0.17 + juv * 0.08)), 0.52 - juv * 0.2);
   // Holds the main girth longer through the body so they don't look thin
-  const midGirth = 1.0 - (0.35 - juv * 0.16) * smoothstep(0.35, BODY_END, t);
+  const midGirth = 1.0 - (0.36 - juv * 0.16) * smoothstep(0.32, BODY_END, t);
   // Stronger tail section
   const peduncle = Math.pow(1 - clamp01(t / BODY_END), 0.6 - juv * 0.14);
 
-  return w * head * midGirth * Math.max(0.12 + juv * 0.05, peduncle);
+  return w * head * midGirth * Math.max(0.11 + juv * 0.05, peduncle);
 }
 
 const topHalf = (t: number, w: number, juv = 0): number =>
@@ -39,6 +39,12 @@ function drawBlob(g: Graphics, pts: Vec2[], count: number): void {
     g.quadraticCurveTo(c.x, c.y, (c.x + d.x) / 2, (c.y + d.y) / 2);
   }
   g.closePath();
+}
+
+/** cheap deterministic 0..1 hash, for placing the skin mottling */
+function hash01(n: number): number {
+  const s = Math.sin(n * 127.1 + 311.7) * 43758.5453;
+  return s - Math.floor(s);
 }
 
 export class ProceduralWhaleView implements WhaleView {
@@ -70,7 +76,8 @@ export class ProceduralWhaleView implements WhaleView {
     const px = scale * cam.scale;
     // smooth LOD/visibility ramps so nothing pops as the camera scale drifts
     const detail = smoothstep(0.08, 0.26, px); // fins + hull resolution
-    const faceDetail = smoothstep(0.3, 0.6, px); // eye + jaw line
+    const faceDetail = smoothstep(0.24, 0.5, px); // eye + jaw line
+    const mottle = smoothstep(0.22, 0.48, px); // dappled skin + rim light
 
     // fewer hull segments when small/far; the pools cover the upper bound
     const STEPS = Math.max(
@@ -123,8 +130,11 @@ export class ProceduralWhaleView implements WhaleView {
     const th = (t: number): number => topHalf(t, width, juv);
     const bh = (t: number): number => botHalf(t, width, juv);
 
-    const darkSkin = mixColor(skin, 0x000000, 0.28);
-    const finSkin = mixColor(skin, 0x000000, 0.18);
+    const darkSkin = mixColor(skin, 0x000000, 0.22);
+    const finSkin = mixColor(skin, 0x000000, 0.16);
+    const backSheen = mixColor(skin, 0xbfdbe8, 0.24); // sunlit dorsal ridge
+    const blotch = mixColor(skin, 0xa9c8d6, 0.5); // pale mottling flecks
+    const midTone = mixColor(belly, skin, 0.5); // soft countershade edge
 
     // ---------- 1. Main body hull ----------
     let n = 0;
@@ -143,118 +153,170 @@ export class ProceduralWhaleView implements WhaleView {
     g.fill({ color: mixColor(skin, 0x000000, 0.14 * backCam), alpha });
 
     // ---------- 2. Fluke ----------
+    // swept-back blades, pointed tips, concave trailing edge and a centre notch
     {
       const rootT = BODY_END;
-      const span = 20 * scale * foreK;
-      const sweep = 12 * scale;
+      const span = 22 * scale * foreK;
+      const sweep = 15 * scale;
 
       const rx = at(rootT, 0, 0, this.w0).x;
       const ry = this.w0.y;
-      at(rootT, -sweep, -span, this.w0);
+      at(rootT, -sweep * 1.15, -span, this.w0);
       const topX = this.w0.x;
       const topY = this.w0.y;
-      at(rootT, -sweep * 0.35, 0, this.w0);
+      at(rootT, -sweep * 0.18, 0, this.w0);
       const notchX = this.w0.x;
       const notchY = this.w0.y;
-      at(rootT, -sweep, span, this.w0);
+      at(rootT, -sweep * 1.15, span, this.w0);
       const botX = this.w0.x;
       const botY = this.w0.y;
 
       g.moveTo(rx, ry);
-      at(rootT, 2, -span * 0.45, this.w0);
+      at(rootT, 3, -span * 0.55, this.w0); // leading edge, root → top tip
       g.quadraticCurveTo(this.w0.x, this.w0.y, topX, topY);
-      at(rootT, -sweep * 0.7, -span * 0.25, this.w0);
+      at(rootT, -sweep * 1.35, -span * 0.34, this.w0); // concave trailing edge
       g.quadraticCurveTo(this.w0.x, this.w0.y, notchX, notchY);
-      at(rootT, -sweep * 0.7, span * 0.25, this.w0);
+      at(rootT, -sweep * 1.35, span * 0.34, this.w0);
       g.quadraticCurveTo(this.w0.x, this.w0.y, botX, botY);
-      at(rootT, 2, span * 0.45, this.w0);
+      at(rootT, 3, span * 0.55, this.w0);
       g.quadraticCurveTo(this.w0.x, this.w0.y, rx, ry);
       g.closePath();
       g.fill({ color: finSkin, alpha });
     }
 
-    // ---------- 3. Pale belly countershading ----------
-    // The patch normally hugs the lower flank. As the whale rolls belly-to-
-    // camera it spreads to cover the whole visible body; past a half roll it
-    // sits on the *upper* flank (belly is up); as the back comes round it fades
-    // out and the dark hull shows instead.
-    {
-      const lo = 0.02;
-      const hi = BODY_END - 0.1;
-      const spread = Math.max(bellyCam, flipped);
-      const bandTop = (t: number): number => {
-        const inner = bh(t) * (0.45 - 0.2 * smoothstep(0.1, 0.4, t));
-        return inner + (-th(t) - inner) * spread;
-      };
-      const bandBot = (t: number): number => {
-        const inner = bh(t) * (0.45 - 0.2 * smoothstep(0.1, 0.4, t));
-        const outer = bh(t) * 0.98;
-        return outer + (-inner - outer) * flipped;
-      };
+    // shared band extent for the shading layers below
+    const lo = 0.02;
+    const hi = BODY_END - 0.08;
+    const drawBand = (
+      topFn: (t: number) => number,
+      botFn: (t: number) => number,
+      color: number,
+      a: number,
+    ): void => {
+      if (a <= 0.01) return;
       let m = 0;
       for (let s = 0; s <= STEPS; s++) {
         const t = lo + (s / STEPS) * (hi - lo);
-        const tp = bandTop(t);
-        const bt = bandBot(t);
-        const mid = (tp + bt) * 0.5;
-        at(t, 0, (mid + (bt - mid) * (1 - backCam)) * foreK, this.pale[m++]);
+        at(t, 0, botFn(t) * foreK, this.pale[m++]);
       }
       for (let s = STEPS; s >= 0; s--) {
         const t = lo + (s / STEPS) * (hi - lo);
-        const tp = bandTop(t);
-        const bt = bandBot(t);
-        const mid = (tp + bt) * 0.5;
-        at(t, 0, (mid + (tp - mid) * (1 - backCam)) * foreK, this.pale[m++]);
+        at(t, 0, topFn(t) * foreK, this.pale[m++]);
       }
       drawBlob(g, this.pale, m);
-      const ba = Math.min(
-        1,
-        alpha * 0.88 * (1 - backCam) * (1 + 0.5 * bellyCam),
+      g.fill({ color, alpha: Math.min(1, a) });
+    };
+
+    // ---------- 3. Sunlit dorsal sheen ----------
+    // a lighter wash hugging the top edge, so the back reads as lit from above
+    drawBand(
+      (t) => -th(t) * 0.98,
+      (t) => -th(t) * (0.1 + 0.34 * smoothstep(0.05, 0.75, t)),
+      backSheen,
+      alpha * 0.5 * clamp01(Math.abs(cr) + backCam * 0.4),
+    );
+
+    // ---------- 4. Pale belly countershading ----------
+    // The bright patch hugs the lower flank but sweeps up high behind the head
+    // and along the lower jaw. A wider, fainter mid-tone band softens its upper
+    // edge. As the whale rolls belly-to-camera both spread over the whole body;
+    // past a half roll they sit on the upper flank; as the back comes round they
+    // fade and the dark hull shows instead.
+    {
+      const spread = Math.max(bellyCam, flipped);
+      const bellyLevel = (t: number): number => {
+        const base = bh(t) * (0.46 - 0.14 * smoothstep(0.08, 0.5, t));
+        const lift = smoothstep(0.36, 0.04, t); // rises toward the rostrum
+        let top = base + (-th(t) * 0.42 - base) * lift;
+        top = top + (-th(t) - top) * spread;
+        return top;
+      };
+      const bellyOuter = (t: number): number => {
+        const outer = bh(t) * 0.99;
+        return outer + (-bellyLevel(t) - outer) * flipped;
+      };
+
+      drawBand(
+        (t) => bellyLevel(t) - th(t) * 0.24,
+        bellyOuter,
+        midTone,
+        alpha * 0.5 * (1 - backCam),
       );
-      g.fill({ color: belly, alpha: ba });
+      drawBand(
+        bellyLevel,
+        bellyOuter,
+        belly,
+        alpha * 0.9 * (1 - backCam) * (1 + 0.5 * bellyCam),
+      );
     }
 
-    // ---------- 4. Pectoral flipper ----------
+    // ---------- 5. Dappled skin mottling ----------
+    // scattered pale flecks over the back — the blue whale's signature marbling
+    if (mottle > 0.02 && cr > 0.05) {
+      const flecks = 4 + Math.round(9 * mottle);
+      for (let k = 0; k < flecks; k++) {
+        const r1 = hash01(k + 0.5);
+        const r2 = hash01(k * 2.7 + 1.3);
+        const r3 = hash01(k * 4.1 + 5.9);
+        const t = 0.12 + r1 * 0.74;
+        const vy = -th(t) * (0.85 - r2 * 0.95); // back → upper flank
+        at(t, (r3 - 0.5) * 12 * scale, vy * foreK, this.w0);
+        g.circle(this.w0.x, this.w0.y, (1.6 + r3 * 3.4) * px);
+        g.fill({
+          color: blotch,
+          alpha: alpha * mottle * clamp01(cr) * (0.1 + 0.12 * r2),
+        });
+      }
+    }
+
+    // ---------- 6. Pectoral flipper ----------
+    // long, slender and pointed, angled down and back off the forebody
     if (detail > 0.02 && Math.abs(cr) > 0.04) {
-      const t = 0.25;
+      const t = 0.28;
       // signed girth — flips to the dorsal side once the whale rolls past 90°
       const bf = bh(t) * cr * foreK;
-      const rfX = at(t, 10, bf * 0.05, this.w0).x;
+      const rfX = at(t, 11, bf * 0.05, this.w0).x;
       const rfY = this.w0.y;
-      const rbX = at(t, -16, bf * 0.42, this.w0).x;
+      const rbX = at(t, -13, bf * 0.42, this.w0).x;
       const rbY = this.w0.y;
-      const tfX = at(t, -20, bf * 1.32, this.w0).x;
-      const tfY = this.w0.y;
-      const tbX = at(t, -34, bf * 1.5, this.w0).x;
-      const tbY = this.w0.y;
+      const tipX = at(t, -46, bf * 1.72, this.w0).x;
+      const tipY = this.w0.y;
 
       g.moveTo(rfX, rfY);
-      at(t, -4, bf * 0.9, this.w0); // leading edge
-      g.quadraticCurveTo(this.w0.x, this.w0.y, tfX, tfY);
-      at(t, -30, bf * 1.62, this.w0); // blunt tip
-      g.quadraticCurveTo(this.w0.x, this.w0.y, tbX, tbY);
-      at(t, -22, bf * 0.98, this.w0); // trailing edge
+      at(t, -12, bf * 1.02, this.w0); // leading edge, gently convex
+      g.quadraticCurveTo(this.w0.x, this.w0.y, tipX, tipY);
+      at(t, -33, bf * 1.32, this.w0); // trailing edge back to the root
       g.quadraticCurveTo(this.w0.x, this.w0.y, rbX, rbY);
-      at(t, -1, bf * 0.16, this.w0); // root fillet
+      at(t, 0, bf * 0.16, this.w0); // root fillet
       g.quadraticCurveTo(this.w0.x, this.w0.y, rfX, rfY);
       g.closePath();
       g.fill({
         color: darkSkin,
-        alpha: alpha * detail * Math.max(0.15, Math.abs(cr)),
+        alpha:
+          alpha * Math.max(0.2, Math.abs(cr)) * smoothstep(0.02, 0.35, detail),
       });
     }
 
-    // ---------- 5. Tiny dorsal fin ----------
+    // ---------- 7. Small falcate dorsal fin ----------
+    // a stubby, blunt hook set three-quarters of the way back
     {
-      const t = 0.75;
+      const t = 0.72;
       const k = cr * foreK; // points up level, edge-on at 90°, down when inverted
-      const r0X = at(t - 0.02, 0, -th(t - 0.02) * k, this.w0).x;
-      const r0Y = this.w0.y;
-      const r1X = at(t + 0.02, 0, -th(t + 0.02) * k, this.w0).x;
-      const r1Y = this.w0.y;
-      at(t + 0.01, -3, -(th(t) + 4) * k, this.w0);
-      g.moveTo(r0X, r0Y);
-      g.quadraticCurveTo(this.w0.x, this.w0.y, r1X, r1Y);
+      const h = th(t) * 0.8 + 3.5;
+      const frX = at(t + 0.028, 0, -th(t + 0.028) * k, this.w0).x;
+      const frY = this.w0.y;
+      const bkX = at(t - 0.04, 0, -th(t - 0.04) * k, this.w0).x;
+      const bkY = this.w0.y;
+      const tpX = at(t - 0.018, -3, -(th(t) + h) * k, this.w0).x;
+      const tpY = this.w0.y;
+
+      g.moveTo(frX, frY);
+      at(t + 0.02, 2, -(th(t) + h * 0.55) * k, this.w0); // convex leading edge
+      g.quadraticCurveTo(this.w0.x, this.w0.y, tpX, tpY);
+      at(t - 0.035, -4, -(th(t) + h * 0.5) * k, this.w0); // concave trailing edge
+      g.quadraticCurveTo(this.w0.x, this.w0.y, bkX, bkY);
+      at(t - 0.005, 0, -th(t) * 0.5 * k, this.w0);
+      g.quadraticCurveTo(this.w0.x, this.w0.y, frX, frY);
       g.closePath();
       g.fill({
         color: finSkin,
@@ -262,28 +324,58 @@ export class ProceduralWhaleView implements WhaleView {
       });
     }
 
-    // ---------- 6. Eye & throat jaw line ----------
-    // both live on the near flank — gone once the whale rolls its belly or
+    // ---------- 8. Dorsal rim light ----------
+    // a thin bright line where the overhead light catches the top of the back
+    if (mottle > 0.03 && cr > 0.2) {
+      const RS = 12;
+      let b = 0;
+      for (let s = 0; s <= RS; s++) {
+        const t = 0.05 + (s / RS) * 0.8;
+        at(t, 0, -th(t) * 0.93 * foreK, this.outline[b++]);
+      }
+      g.moveTo(this.outline[0].x, this.outline[0].y);
+      for (let s = 1; s < b; s++) {
+        const c = this.outline[s - 1];
+        const d = this.outline[s];
+        g.quadraticCurveTo(c.x, c.y, (c.x + d.x) / 2, (c.y + d.y) / 2);
+      }
+      g.stroke({
+        width: Math.max(0.8, 1.3 * px),
+        color: mixColor(skin, 0xffffff, 0.55),
+        alpha: alpha * 0.42 * mottle * clamp01(cr),
+      });
+    }
+
+    // ---------- 9. Eye, jaw line & blowhole ----------
+    // all live on the near flank — gone once the whale rolls its belly or
     // back to the camera
     if (faceDetail > 0.02 && cr > 0.05) {
       const ek = cr * foreK;
       const fk = faceDetail * clamp01(cr);
-      const snoutX = at(0.01, 0, bh(0.01) * 0.15 * ek, this.w0).x;
+
+      // long curved gape from the rostrum tip past the eye
+      const snoutX = at(0.005, 0, bh(0.005) * 0.12 * ek, this.w0).x;
       const snoutY = this.w0.y;
-      const jawX = at(0.2, -2, bh(0.2) * 0.25 * ek, this.w0).x;
+      const jawX = at(0.24, -2, bh(0.24) * 0.28 * ek, this.w0).x;
       const jawY = this.w0.y;
       g.moveTo(snoutX, snoutY);
-      at(0.1, 0, bh(0.1) * 0.25 * ek, this.w0);
+      at(0.12, 0, bh(0.12) * 0.28 * ek, this.w0);
       g.quadraticCurveTo(this.w0.x, this.w0.y, jawX, jawY);
       g.stroke({
         width: Math.max(0.8, 1.2 * px),
-        color: mixColor(skin, 0x000000, 0.4),
+        color: mixColor(skin, 0x000000, 0.42),
         alpha: alpha * 0.5 * fk,
       });
 
-      at(0.15, -1, -th(0.15) * 0.05 * ek, this.w0);
-      g.circle(this.w0.x, this.w0.y, Math.max(1.2, 1.8 * px));
+      // eye, low and just behind the corner of the mouth
+      at(0.17, -2, bh(0.17) * 0.02 * ek, this.w0);
+      g.circle(this.w0.x, this.w0.y, Math.max(1.2, 1.7 * px));
       g.fill({ color: 0x05090d, alpha: alpha * fk });
+
+      // blowhole splash-guard mark on top of the head
+      at(0.09, 0, -th(0.09) * 0.72 * ek, this.w0);
+      g.circle(this.w0.x, this.w0.y, Math.max(0.9, 1.3 * px));
+      g.fill({ color: mixColor(skin, 0x000000, 0.4), alpha: alpha * 0.7 * fk });
     }
   }
 }

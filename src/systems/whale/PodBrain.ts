@@ -44,25 +44,74 @@ export class PodBrain {
     const o = this.out;
     o.ax = 0;
     o.ay = 0;
-
-    const b = w.body;
-    const { whale, clock } = ctx;
+    o.faceDir = 1; // the follow() path relies on the historical default
 
     if (w.state === "following") {
       this.follow(w, ctx, crew, dt);
       return o;
     }
 
-    // wild / answered / lost — a gentle vertical bob, plus homing when answered
-    o.ay = Math.sin(clock.t * 0.5 + w.ph) * 6;
+    this.wander(w, ctx, dt);
+    return o;
+  }
+
+  /**
+   * Wild / answered / lost whales now live like real whales: they meander at a
+   * cruising depth, burn breath while they're down, and climb to the surface to
+   * blow when their lungs run low before sinking back to the deep. `answered`
+   * layers a homing pull toward the player on top.
+   */
+  private wander(w: PodWhale, ctx: GameContext, dt: number): void {
+    const o = this.out;
+    const des = this.des;
+    const b = w.body;
+    const { whale, clock, bus } = ctx;
+
+    // --- breath: same curve the player's VitalsSystem uses ---
+    if (b.y < 60) {
+      w.breath = Math.min(100, w.breath + 52 * dt);
+    } else {
+      w.breath -= (0.8 + Math.min(1, b.y / 3000) * 1.3) * dt;
+      if (w.breath < 0) w.breath = 0;
+    }
+    if (!w.surfacing && w.breath < 30) w.surfacing = true;
+    else if (w.surfacing && w.breath > 96) w.surfacing = false;
+
+    // a soft spout while it hangs at the surface catching its breath (only
+    // bother with FX for a whale that's actually on screen)
+    const onScreen = Math.abs(b.x - ctx.camera.x) < 4000;
+    if (onScreen && w.surfacing && b.y < 40 && Math.random() < dt * 2.4) {
+      bus.emit("fx:bubbles", {
+        x: b.x,
+        y: 0,
+        count: 3,
+        splash: true,
+        spread: 26,
+      });
+      bus.emit("audio:call", { f0: 90, f1: 60, dur: 0.4, vol: 0.03 });
+    }
+
+    // --- target: the surface on a breath run, else a bob around cruise depth ---
+    const ty = w.surfacing
+      ? 8
+      : w.cruiseY + Math.sin(clock.t * 0.5 + w.ph) * 40;
+    const dy = ty - b.y;
+
+    const cruise = w.surfacing ? 28 : 44;
+    des.x = b.facing * cruise + Math.sin(clock.t * 0.3 + w.ph) * 16;
+    des.y = clamp(dy * (w.surfacing ? 1.7 : 0.9), -260, 260);
+
     if (w.state === "answered") {
       const dx = whale.x - b.x;
-      const dy = whale.y - b.y;
-      const d = dist(dx, dy) || 1;
-      o.ax += (dx / d) * 60;
-      o.ay += (dy / d) * 55;
+      const ody = whale.y - b.y;
+      const d = dist(dx, ody) || 1;
+      des.x += (dx / d) * 90;
+      des.y += (ody / d) * 80;
     }
-    return o;
+
+    o.ax = (des.x - b.vx) * APPROACH_GAIN;
+    o.ay = (des.y - b.vy) * APPROACH_GAIN;
+    o.faceDir = des.x < -8 ? -1 : des.x > 8 ? 1 : 0;
   }
 
   private follow(

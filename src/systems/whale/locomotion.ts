@@ -229,7 +229,8 @@ export const PLAYER_CAPS: LocoCaps = {
  * approach force plus turn-rate limiting shape the motion). Followers get a
  * gentle buoyancy and, because the hard "never breach" ceiling is lifted, the
  * same airborne roll the player has (a brain has to actually launch them for it
- * to fire). Wild / answered whales keep their calmer depth band and stay under.
+ * to fire). Wild / answered whales stay in the water but can now reach the
+ * surface, so the pod brain can run them up for a breath.
  */
 export function podCaps(w: PodWhale): LocoCaps {
   const following = w.state === "following";
@@ -247,7 +248,7 @@ export function podCaps(w: PodWhale): LocoCaps {
     floorClear: following ? 90 : 260,
     floorMinY: following ? 60 : -Infinity,
     floorBounceVy: Infinity,
-    ceilingY: following ? -Infinity : 220,
+    ceilingY: following ? -Infinity : 0,
     worldMinX: -Infinity,
   };
 }
