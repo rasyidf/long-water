@@ -6,6 +6,7 @@
 import type { Application } from "pixi.js";
 
 import type { Heightfield } from "../world/Heightfield";
+import type { LevelDef } from "../world/level/schema";
 import type { Camera } from "./Camera";
 import type { Clock } from "./Clock";
 import type { EventBus } from "./EventBus";
@@ -28,6 +29,8 @@ export interface GameContext {
   readonly input: Input;
   readonly layers: Layers;
   readonly world: Heightfield;
+  /** the resolved level file driving this run's stage */
+  readonly level: LevelDef;
 
   readonly whale: PlayerWhale;
   readonly pod: Pod;

@@ -17,7 +17,10 @@ import {
   PREVIEW_SIZE,
   type PreviewFraming,
 } from "../world/PreviewScene";
-import { spawnWorld } from "../world/WorldSpawner";
+import { setActiveLevel } from "../world/level/active";
+import { applyLevel } from "../world/level/apply";
+import { loadLevelDef, resolveLevelId } from "../world/level/registry";
+import type { LevelDef } from "../world/level/schema";
 
 import { Camera } from "./Camera";
 import { Clock } from "./Clock";
@@ -56,9 +59,26 @@ import { Hints } from "../hud/Hints";
 import { Hud } from "../hud/Hud";
 import { PauseMenu } from "../hud/PauseMenu";
 
-function seedFromUrl(): number {
+/** Ordered boot milestones, reported to `boot`'s `onProgress` for the splash. */
+export type BootPhase = "renderer" | "world" | "systems" | "warmup" | "ready";
+
+/** the level the run should use: `?level=`, falling back to `crossing` if that
+ *  id is unknown or its file fails to validate */
+function resolveLevel(): LevelDef {
+  const id = resolveLevelId();
+  try {
+    return loadLevelDef(id);
+  } catch (e) {
+    console.error(`level "${id}" failed to load — using "crossing"`, e);
+    return loadLevelDef("crossing");
+  }
+}
+
+/** `?seed=` wins, then the level's own `seed`, then the default */
+function seedFor(level: LevelDef): number {
   const q = Number(new URLSearchParams(location.search).get("seed"));
-  return Number.isFinite(q) && q > 0 ? q : DEFAULT_SEED;
+  if (Number.isFinite(q) && q > 0) return q;
+  return level.seed ?? DEFAULT_SEED;
 }
 
 export class Game {
@@ -70,9 +90,16 @@ export class Game {
 
   async boot(
     mount: HTMLElement,
-    opts: { preview?: boolean } = {},
+    opts: { preview?: boolean; onProgress?: (phase: BootPhase) => void } = {},
   ): Promise<void> {
     const preview = opts.preview ?? false;
+    const report = opts.onProgress ?? ((): void => {});
+    // hand the frame back to the browser so the splash can paint / animate
+    // between the heavy synchronous boot steps
+    const breathe = (): Promise<void> =>
+      new Promise<void>((r) =>
+        requestAnimationFrame(() => setTimeout(() => r(), 0)),
+      );
 
     await this.app.init({
       ...(preview
@@ -84,8 +111,12 @@ export class Game {
       autoDensity: true,
     });
     mount.appendChild(this.app.canvas);
+    report("renderer");
+    if (!preview) await breathe();
 
-    const rng = new Rng(seedFromUrl());
+    const level = resolveLevel();
+    setActiveLevel(level);
+    const rng = new Rng(seedFor(level));
     const world = new Heightfield(rng);
     const whale = new PlayerWhale();
     const pod = new Pod();
@@ -97,7 +128,9 @@ export class Game {
     const stores = { krill, schools, coral, pod, ships, particles };
     let framing: PreviewFraming | null = null;
     if (preview) framing = buildPreviewScene(rng, world, whale, stores);
-    else spawnWorld(rng, world, stores);
+    else applyLevel(level, rng, world, stores);
+    report("world");
+    if (!preview) await breathe();
 
     const camera = new Camera();
     camera.x = whale.x;
@@ -115,6 +148,7 @@ export class Game {
       input,
       layers,
       world,
+      level,
       whale,
       pod,
       krill,
@@ -185,6 +219,8 @@ export class Game {
       this.pauseMenu,
     ];
     for (const s of this.systems) s.init?.(this.ctx);
+    report("systems");
+    await breathe();
 
     bus.on("game:start", () => {
       this.clock.markStarted();
@@ -211,6 +247,18 @@ export class Game {
       onPause: () => this.pauseMenu.toggle(),
     });
 
+    // draw the frozen opening frame now, behind the splash: this is where Pixi
+    // compiles the bloom-filter shader and uploads every renderer's geometry,
+    // the bulk of the old "stall". Two passes so a first-pass allocation can't
+    // land visibly on the first real frame.
+    this.renderScene();
+    this.app.render();
+    report("warmup");
+    await breathe();
+    this.renderScene();
+    this.app.render();
+    report("ready");
+
     requestAnimationFrame(this.frame);
   }
 
@@ -223,15 +271,21 @@ export class Game {
     }
     ctx.input.frameEnd();
 
-    ctx.camera.vw = this.app.renderer.width / this.app.renderer.resolution;
-    ctx.camera.vh = this.app.renderer.height / this.app.renderer.resolution;
-
     const sh = ctx.camera.shake;
     ctx.layers.world.x = sh > 0.4 ? (Math.random() - 0.5) * sh : 0;
     ctx.layers.world.y = sh > 0.4 ? (Math.random() - 0.5) * sh : 0;
 
-    for (const s of this.systems) s.render?.(ctx);
+    this.renderScene();
 
     requestAnimationFrame(this.frame);
   };
+
+  /** Sync the viewport and run every system's `render`. The actual GPU draw is
+   * the Pixi ticker's job; `boot`'s warm-up calls `app.render()` itself. */
+  private renderScene(): void {
+    const { ctx } = this;
+    ctx.camera.vw = this.app.renderer.width / this.app.renderer.resolution;
+    ctx.camera.vh = this.app.renderer.height / this.app.renderer.resolution;
+    for (const s of this.systems) s.render?.(ctx);
+  }
 }

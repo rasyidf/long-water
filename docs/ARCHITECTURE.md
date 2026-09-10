@@ -167,14 +167,20 @@ detours to feed and recruit.
 
 ## 9. Difficulty & variants (design space)
 
-The leg is data (`config/route.ts`) — start, finish, zones. Intended knobs for
-future difficulty tiers or alternate legs, none of which require engine changes:
+One run's stage is a single JSON file, `src/world/levels/<id>.json`, selected by
+`?level=<id>` (default `crossing`). The file owns the leg (start/finish), the
+zones, terrain knobs, and every entity spawn (see §6). A future level-builder
+tool reads and writes this format. Knobs available today, none of which require
+engine changes:
 
-- leg length and zone layout
-- krill density / swarm size (world spawn)
-- ship count, speed, and lane width
-- breath/reserve drain multipliers
-- pod size available on the route
+- leg length, zone layout and colours
+- terrain: per-tile WFC weights, pinned route ends, trench carving on/off
+- krill / fish / whale / ship / coral placement — parametric `scatter` bands or
+  explicit `place` lists
+- pod size available on the route (whale directives)
+
+Breath/reserve drain multipliers still live next to `VitalsSystem`; folding them
+into the level file is the obvious next step.
 
 ## 10. Controls
 
@@ -287,20 +293,21 @@ communicate through one typed event bus.
 | Shared refs | `core/GameContext.ts` | Every system reaches shared state/services here. Holds references only, no logic. |
 | Messaging | `core/EventBus.ts` | Typed pub/sub. Add a mechanic's events to `GameEvents`; emit/listen. No existing system changes. |
 | State | `state/*` | Plain data classes ("stores"), one per entity kind. No behaviour. |
-| World gen | `world/*` | `Heightfield` (static seabed) + `WorldSpawner` (fills the stores). |
+| World gen | `world/*` | `Heightfield` (static seabed) + `world/level/apply.ts` (`applyLevel` fills the stores from the level file's spawn directives). |
+| Level files | `world/level/*` + `world/levels/*.json` | `LevelDef` (schema) resolved once in `Game`, held in `world/level/active.ts`. Owns the leg, zones, terrain knobs and all spawns. `?level=<id>`. |
 | Scene graph | `core/Layers.ts` | One named Pixi layer per visual concern; draw order is the `LAYER_ORDER` array. A renderer owns its layer and touches no other. |
 | Whale movement | `state/WhaleBody.ts` + `systems/whale/*` | `WhaleBody` (position/velocity/facing/roll/spine) is owned by the player and every pod whale. `locomotion.ts` integrates a body from an `Intent`; `PlayerBrain` / `PodBrain` produce the intent; `WhaleSystem` runs the pipeline. |
 | Whale pose | `core/SpineChain.ts` + `systems/whale/pose.ts` | The joint-chain backbone; the source of truth for every whale's pose. `stepPose` (was `SpineSystem`) advances it for every whale. |
 | Whale body | `render/whale/WhaleView.ts` | Interface for *drawing* a whale from its pose. `ProceduralWhaleView` is the implementation; swap it without touching simulation. |
 | User-facing copy | `i18n/en.ts` + `i18n/index.ts` | Every HUD/card string goes through `t(key, params)`. `en.ts` is the source of truth. |
-| Leg distance | `config/route.ts` | `LEG` owns start/finish/zones; helpers feed the HUD, the win line, and the end card. |
+| Leg distance | `config/route.ts` + `config/zones.ts` | Read-throughs onto the active level: `activeLeg()` / `legId()` / `zoneAt()` / `waterTempC()`. Feed the HUD, the win line, the water textures and the end card. |
 | Full-screen cards | `hud/Cards.ts` + `hud/cardContent.ts` | `Cards.show(CardContent)` renders any card into `#card`; builders produce the content. |
 
 ### GameContext
 
 ```ts
 interface GameContext {
-  app; bus; rng; clock; camera; input; layers; world;   // services
+  app; bus; rng; clock; camera; input; layers; world; level;   // services
   whale; pod; krill; schools; coral; ships; song; particles; stats;  // stores
   running: boolean;
 }
@@ -375,24 +382,35 @@ Plain classes, mutated in place by systems, serialized by `Snapshot`.
 
 ## 6. World generation (`world/`)
 
+The run's stage is a **level file** — `world/levels/<id>.json`, chosen by
+`?level=<id>` (default `crossing`). `Game.boot` resolves it once
+(`world/level/registry.ts` → `parseLevel` in `world/level/validate.ts`), stashes
+it in `world/level/active.ts` (`getLevel()`), and everything downstream reads it
+from there. A bad `?level=` or an invalid file logs and falls back to `crossing`.
+See `world/levels/README.md` for the full format — it is what a future
+level-builder tool reads and writes.
+
 1. **`Wfc.ts`** — 1D wave-function collapse over the 7 terrain tiles in
    `config/tiles.ts` (each tile: depth band, roughness, weight; legal neighbours
-   in `RULES`). Both route ends are pinned to `shelf`. Falls back to all-`plain`
-   after 60 failed attempts.
+   in `RULES`). `wfc(n, rng, opts?)` takes the level's `terrain` block: per-tile
+   `weights` multipliers and the `pinStart` / `pinEnd` route ends (default: both
+   pinned to `shelf`). Falls back to all-`plain` after 60 failed attempts.
 2. **`Heightfield.ts`** — turns the tiling into a per-column depth profile:
    sample each cell's band, add two octaves of fbm scaled by roughness, then 4
-   box-blur passes. Exposes `floorAt(x)`, `tileNameAt(x)`, `finishX` (from
-   `LEG`), and `floorLit[]` (the sonar-lit seabed accumulator, decayed by
-   `SongSystem`).
-3. **`WorldSpawner.ts`** — fills the stores from the heightfield + rng: krill
-   over upwelling (not on rock, below the light line), fish schools, one pod
-   whale near the start plus a scattered line down the route, ships only in
-   x ∈ [60 000, 92 000], the marine-snow field, and coral patches on shallow
-   shelf/seamount rock (each patch mostly hosting a sheltering reef school).
-   Blocks are independent.
+   box-blur passes; `carveTrenches` runs unless `terrain.trenches` is `false`.
+   Exposes `floorAt(x)`, `tileNameAt(x)`, `finishX` (from the level's leg), and
+   `floorLit[]` (the sonar-lit seabed accumulator, decayed by `SongSystem`).
+3. **`world/level/apply.ts`** (`applyLevel`) — walks the file's `spawns` in
+   order, dispatching each directive to its emitter in `world/level/emitters.ts`:
+   krill, fish schools, wild whales, ships, the marine-snow field, coral patches
+   (each mostly hosting a sheltering reef school). Directives are either
+   `scatter` (a parametric band stepped along x) or `place` (an explicit list).
+   **Spawn order is the rng draw order** — one seeded stream, drawn in file
+   order, so a fixed seed + `crossing.json` reproduces the pre-file world.
 
-Scale: `UNIT_M = 0.1` (1 unit = 10 cm). `WORLD_W = 120 000` (12 km). Whale
-length 280 (28 m). Light: `DARK_START` 900 (90 m) → `DARK_FULL` 1800 (180 m).
+Scale: `UNIT_M = 0.1` (1 unit = 10 cm). `WORLD_W = 120 000` (12 km) is the max
+canvas; a level's `leg.finishX` may end sooner. Whale length 280 (28 m). Light:
+`DARK_START` 900 (90 m) → `DARK_FULL` 1800 (180 m).
 
 ## 7. Rendering
 
@@ -464,14 +482,15 @@ Mostly DOM, defined in `index.html`, driven each frame from the context.
   sibling file with the same keys, added to `LOCALES` in `index.ts`; missing
   keys fall through to English.
 
-## 10. Route config (`config/route.ts`)
+## 10. Route config (`config/route.ts`, `config/zones.ts`)
 
-`LEG` is the single source of truth for the leg's `startX`, `finishX`, and
-`zones`. `legLengthKm()` and `kmCovered(x)` feed the HUD readout;
-`Heightfield.finishX` returns `LEG.finishX` (the win line); `endCard` reads the
-spelled distance from `leg.<id>.distanceSpelled` with a numeric fallback.
-Multiple legs / difficulty tiers: turn `LEG` into `LEGS[]` plus a `resolveLeg()`
-that reads `?leg=` or a setting — nothing downstream changes.
+The leg (`startX` / `finishX`) and the zone list live in the active level file
+(§6). `config/route.ts` and `config/zones.ts` are thin read-throughs so nothing
+imports the level layer directly: `activeLeg()`, `legId()` (the key for
+`leg.<id>.*` / `zone.<id>` i18n), `legLengthKm()`, `kmCovered(x)`, `zoneAt(x)`,
+`zones()`, `waterTempC(x, depthM)`. `Heightfield.finishX` and `endCard` read
+through the same helpers. Alternate legs / difficulty tiers = another JSON file
+plus its i18n keys; `?level=` selects it.
 
 ## 11. Pause & persistence
 
@@ -481,7 +500,7 @@ that reads `?leg=` or a setting — nothing downstream changes.
   pod, krill amounts, school fish, ship positions, stats) to
   `localStorage["long-water:save"]`. The generated world is **not** saved — it
   rebuilds deterministically from the seed, so a save only loads against a
-  matching `rng.seedValue` (and schema `VERSION`). Each whale's `body` fields
+  matching `rng.seedValue`, level `id`, and schema `VERSION`). Each whale's `body` fields
   are restored and its spine chains collapsed to a straight stub
   (`WhaleBody.resetChains`); the swim wave rebuilds within a frame.
 - **Options** (`localStorage["long-water:opts"]`): master volume, applied via
@@ -500,8 +519,18 @@ that reads `?leg=` or a setting — nothing downstream changes.
 
 No existing system imports yours, so nothing else changes.
 
+**Add a level / alternate leg:** copy `world/levels/crossing.json`, rename it,
+set `"id"` to the new stem, tune the leg / zones / terrain / spawns, add
+`leg.<id>.*` and any new `zone.<id>` keys to `i18n/en.ts`, load with
+`?level=<id>`. Format reference: `world/levels/README.md`.
+
+**Add a spawn kind:** add its directive types to `world/level/schema.ts`, an
+`emit*` function to `world/level/emitters.ts`, a `case` in `world/level/apply.ts`,
+and a `kind` check in `world/level/validate.ts`.
+
 **Add a terrain biome:** add a tile to `config/tiles.ts` and list its legal
-neighbours in `RULES`. `Wfc`/`Heightfield` consume it unchanged.
+neighbours in `RULES`. `Wfc`/`Heightfield` consume it unchanged; level files can
+then reweight or pin it via `terrain`.
 
 **Add a fish species:** add a `SpeciesProfile` to `config/species.ts` and, if it
 needs a new body shape, a `FishStrategy` to `render/fauna/strategies.ts`.

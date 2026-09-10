@@ -11,6 +11,34 @@
   <body>
     <div id="app"><div id="pixi-container"></div></div>
 
+    <!-- Instant splash: shows on first paint, before the game bundle parses or
+         WebGL comes up. Two icon frames play while the ocean loads behind it;
+         src/main.ts drives the progress bar and lifts it when the run is ready. -->
+    <div id="splash" class="splash">
+      <div class="splash-stage">
+        <div class="splash-frame f1">
+          <svg viewBox="0 0 64 64" class="splash-ico whale" aria-hidden="true">
+            <path
+              d="M4 33C6 24 16 19 28 20C42 21 50 16 58 9C56 17 55 24 58 30C54 30 49 31 46 34C46 39 40 44 29 45C16 46 4 42 4 33Z"
+            />
+            <path d="M23 39C23 46 27 51 34 53C31 47 29 42 29 37Z" class="fin" />
+          </svg>
+        </div>
+        <div class="splash-frame f2">
+          <svg viewBox="0 0 30 20" class="splash-ico wave" aria-hidden="true">
+            <path d="M1 7C5.5 7 5.5 3 10 3C14.5 3 14.5 7 19 7C23.5 7 23.5 3 28 3" />
+            <path
+              d="M1 14C5.5 14 5.5 10 10 10C14.5 10 14.5 14 19 14C23.5 14 23.5 10 28 10"
+            />
+          </svg>
+        </div>
+      </div>
+      <div class="splash-tail">
+        <div class="splash-word" id="splashWord">Long Water</div>
+        <div class="splash-bar"><i id="splashBar"></i></div>
+      </div>
+    </div>
+
     <div class="hud topbar">
       <div class="tb-left">
         <svg viewBox="0 0 30 20" class="wave-mark" aria-hidden="true">
