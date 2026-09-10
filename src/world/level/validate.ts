@@ -80,7 +80,15 @@ function zones(where: string, v: unknown): LevelZone[] {
   });
 }
 
-const KINDS = new Set(["krill", "school", "whale", "ship", "coral", "snow"]);
+const KINDS = new Set([
+  "krill",
+  "school",
+  "whale",
+  "ship",
+  "coral",
+  "squid",
+  "snow",
+]);
 
 function spawn(where: string, i: number, v: unknown): SpawnDirective {
   if (!isObj(v)) throw new LevelError(where, `spawns[${i}] must be an object`);

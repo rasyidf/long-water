@@ -5,6 +5,7 @@
  * runs the same directives in the same order (`levels/crossing.json`).
  */
 import { DARK_START } from "../../config/constants";
+import { LAIR_FLOOR_GAP, SIZE as SQUID_SIZE } from "../../config/squid";
 import { clamp } from "../../core/math";
 import type { Rng } from "../../core/rng";
 import type {
@@ -16,6 +17,7 @@ import type {
 } from "../../state/Fauna";
 import type { ParticleStore, ShipStore } from "../../state/Hazards";
 import { makePodWhale, type Pod } from "../../state/Pod";
+import { makeSquid, type SquidStore } from "../../state/Squid";
 import type { Heightfield } from "../Heightfield";
 import { makeSchool } from "../makeSchool";
 import type {
@@ -29,6 +31,8 @@ import type {
   ShipPlace,
   ShipScatter,
   SnowField,
+  SquidPlace,
+  SquidScatter,
   WhalePlace,
   WhaleScatter,
 } from "./schema";
@@ -39,6 +43,7 @@ export interface Stores {
   coral: CoralStore;
   pod: Pod;
   ships: ShipStore;
+  squid: SquidStore;
   particles: ParticleStore;
 }
 
@@ -234,6 +239,32 @@ export function emitCoral(
     } else {
       x += rr(rng, d.skipGap);
     }
+  }
+}
+
+export function emitSquid(
+  rng: Rng,
+  world: Heightfield,
+  { squid }: Stores,
+  d: SquidPlace | SquidScatter,
+): void {
+  if (d.mode === "place") {
+    for (const it of d.items)
+      squid.squids.push(
+        makeSquid({
+          x: it.x,
+          y: Math.min(it.y, world.floorAt(it.x) - LAIR_FLOOR_GAP),
+          size: rr(rng, it.size ?? SQUID_SIZE),
+          ph: rng.next() * Math.PI * 2,
+        }),
+      );
+    return;
+  }
+  for (let x = d.from; x < d.to; x += rr(rng, d.step)) {
+    const y = Math.min(world.floorAt(x) - LAIR_FLOOR_GAP, rr(rng, d.yBand));
+    squid.squids.push(
+      makeSquid({ x, y, size: rr(rng, d.size), ph: rng.next() * Math.PI * 2 }),
+    );
   }
 }
 

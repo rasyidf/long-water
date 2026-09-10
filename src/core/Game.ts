@@ -132,7 +132,7 @@ export class Game {
     const ships = new ShipStore();
     const squid = new SquidStore();
     const particles = new ParticleStore();
-    const stores = { krill, schools, coral, pod, ships, particles };
+    const stores = { krill, schools, coral, pod, ships, squid, particles };
     let framing: PreviewFraming | null = null;
     if (preview) framing = buildPreviewScene(rng, world, whale, stores);
     else applyLevel(level, rng, world, stores);

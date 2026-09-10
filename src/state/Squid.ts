@@ -1,27 +1,29 @@
 /**
- * Humboldt-style pack squid — the deep-water harasser. Spawned procedurally by
- * `SquidSystem` from seed-derived lairs, steered by `systems/squid/SquidBrain`,
- * drawn by `render/SquidRenderer`. A plain data class like every `state/*`
- * store; all behaviour lives in the system/brain.
+ * Deep-water squid — a rare, calm atmospheric threat. Placed by the level's
+ * `squid` spawn directive (`world/level/emitters.ts`), steered by
+ * `systems/squid/SquidBrain`, drawn by `render/SquidRenderer`, stepped by
+ * `systems/SquidSystem`. A plain data class; all behaviour lives in the
+ * system/brain.
  *
- * Threat model: non-lethal. A latched squid drains the whale's reserves and
- * drags on it until the player shakes it (tail-kick / speed / surface) or the
- * pod mobs it off.
+ * It lurks where it's placed, takes an interest only if the whale lingers deep
+ * and close, gives one slow telegraphed lunge, and is easily seen off (song,
+ * speed, light, the pod). Non-lethal: a latched squid drains a little and drags
+ * briefly, then lets go.
  */
 import type { Vec2 } from "../core/math";
 
 export type SquidState =
   /** hovering near its lair, unbothered */
   | "lurk"
-  /** has noticed the whale, closing from its blind spot */
+  /** has noticed the whale, shadowing it from the blind spot */
   | "stalk"
-  /** committed jet-dash at the whale */
+  /** committed lunge */
   | "strike"
-  /** attached to the whale, draining it */
+  /** attached to the whale */
   | "latched"
   /** breaking off and jetting for the dark */
   | "flee"
-  /** back at the lair, arousal bleeding off before it can hunt again */
+  /** back at the lair, settling — won't hunt again (long cooldown) */
   | "recover";
 
 export interface Squid {
@@ -30,7 +32,7 @@ export interface Squid {
   vx: number;
   vy: number;
 
-  /** eased heading (rad) — the view points the mantle along this, not `atan2(v)` */
+  /** eased heading (rad) — the view points the mantle along this */
   heading: number;
   /** mantle jet-pulse phase, advanced with thrust */
   jet: number;
@@ -38,8 +40,10 @@ export interface Squid {
   flare: number;
 
   state: SquidState;
-  /** seconds in the current state (drives state-local timeouts) */
+  /** seconds in the current state */
   age: number;
+  /** seconds the whale has been inside `STRIKE_RANGE` this stalk */
+  linger: number;
   /** 0..1 alarm: pulses the photophores, pales the skin, sharpens the turns */
   arousal: number;
   /** while latched: accumulated struggle; detaches at STRUGGLE_BREAK */
@@ -47,16 +51,45 @@ export interface Squid {
   /** attach point in the whale's local frame (along, across), set on grab */
   grip: Vec2;
 
-  /** individual size ~0.8..1.3 and a per-squid phase for desync */
+  /** individual size ~0.85..1.2 and a per-squid phase for desync */
   size: number;
   ph: number;
 
-  /** the lair it returns to, and a stable id so a lair spawns at most one */
-  lair: number;
+  /** the lair it returns to */
   homeX: number;
   homeY: number;
-  /** seconds before it will hunt again (ticks in lurk/recover) */
+  /** seconds before it will hunt again; set huge after one attempt */
   cool: number;
+}
+
+export interface SquidInit {
+  x: number;
+  y: number;
+  size?: number;
+  ph?: number;
+}
+
+export function makeSquid(o: SquidInit): Squid {
+  return {
+    x: o.x,
+    y: o.y,
+    vx: 0,
+    vy: 0,
+    heading: Math.PI,
+    jet: (o.ph ?? 0) * 3,
+    flare: 0.18,
+    state: "lurk",
+    age: 0,
+    linger: 0,
+    arousal: 0,
+    struggle: 0,
+    grip: { x: 0, y: 0 },
+    size: o.size ?? 1,
+    ph: o.ph ?? 0,
+    homeX: o.x,
+    homeY: o.y,
+    cool: 0,
+  };
 }
 
 export class SquidStore {
@@ -64,4 +97,17 @@ export class SquidStore {
 
   /** the currently latched squid, or null — cached each frame by SquidSystem */
   latched: Squid | null = null;
+
+  /** reset every squid to a dormant lurk at its lair (used on load) */
+  rest(): void {
+    this.latched = null;
+    for (const s of this.squids) {
+      s.x = s.homeX;
+      s.y = s.homeY;
+      s.vx = s.vy = 0;
+      s.state = "lurk";
+      s.age = s.linger = s.arousal = s.struggle = s.cool = 0;
+      s.flare = 0.18;
+    }
+  }
 }

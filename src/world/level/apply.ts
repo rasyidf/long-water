@@ -11,6 +11,7 @@ import {
   emitSchools,
   emitShips,
   emitSnow,
+  emitSquid,
   emitWhales,
   type Stores,
 } from "./emitters";
@@ -38,6 +39,9 @@ export function applyLevel(
         break;
       case "coral":
         emitCoral(rng, world, stores, d);
+        break;
+      case "squid":
+        emitSquid(rng, world, stores, d);
         break;
       case "snow":
         emitSnow(rng, world, stores, d);

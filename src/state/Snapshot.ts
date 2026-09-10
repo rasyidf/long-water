@@ -211,9 +211,9 @@ export function load(ctx: GameContext): boolean {
 
   ctx.song.pings.length = 0;
   ctx.particles.bubbles.length = 0;
-  // squid are procedural + transient — clear the pool and any grapple
-  ctx.squid.squids.length = 0;
-  ctx.squid.latched = null;
+  // squid are level-placed and not serialized — settle them back to a dormant
+  // lurk at their lairs and drop any grapple
+  ctx.squid.rest();
   ctx.whale.grip = 0;
   return true;
 }

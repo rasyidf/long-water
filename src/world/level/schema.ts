@@ -171,6 +171,23 @@ export interface CoralPlace {
   items: { x: number; y: number; kind: number; scale: number }[];
 }
 
+export interface SquidPlace {
+  kind: "squid";
+  mode: "place";
+  items: { x: number; y: number; size?: Range }[];
+}
+export interface SquidScatter {
+  kind: "squid";
+  mode: "scatter";
+  from: number;
+  to: number;
+  /** large — squid are rare; y is `min(floor - floorGap, rng.range(yBand))` */
+  step: Range;
+  yBand: Range;
+  floorGap: number;
+  size: Range;
+}
+
 export interface SnowField {
   kind: "snow";
   count: number;
@@ -191,6 +208,8 @@ export type SpawnDirective =
   | ShipPlace
   | CoralScatter
   | CoralPlace
+  | SquidPlace
+  | SquidScatter
   | SnowField;
 
 export interface LevelDef {

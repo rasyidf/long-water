@@ -144,12 +144,13 @@ State machine per wild whale: **wild → answered → following → lost**.
   noise footprint makes followers dive and, if the player keeps the pod shallow
   and close to a ship, breaks whales off. Counter-play: take the pod deep and
   time the crossing between hulls.
-- **Squid.** Deep-water ambush predator, only past the shelf and only when the
-  whale is down in the dark. It stalks from the blind spot behind the fluke and
-  jets in to latch on; a passenger drains reserves + breath and drags on the
-  whale. Counter-play: kick hard, carry speed, run for the surface — or keep a
-  pod, which mobs the squid off fast. Non-lethal (reserves are floored). Seed-
-  derived encounters, so a given seed meets them at the same places.
+- **Squid.** A rare, atmospheric deep-water moment, not a fight — placed by the
+  level (`squid` spawn directive; the default `crossing` has two, far apart and
+  deep). It stays at its lair unless the whale lingers deep and close, then
+  shadows from the blind spot for several seconds and gives one slow lunge.
+  Seen off by singing at it, carrying speed, rising toward the light, or the
+  pod. A latched squid drains a little and drags briefly, then lets go; after
+  one attempt it retreats for good. Non-lethal (reserves floored).
 - **Seabed.** A generated depth profile with legible regions (shelf, slope,
   plain, ridge, seamount, canyon, trench). Whales can't clip through it; the
   player bounces off with downward velocity.
@@ -353,7 +354,7 @@ HUD/FX: `hint:show {text,secs}`, `fx:shake`, `fx:bubbles`.
 | `ShipSystem` | ✓ | Advances ships along the lane. Noise footprint is read by `PodBrain`. |
 | `ParticleSystem` | ✓ | Bubble pool; integrates and culls. Listens for `fx:bubbles`. |
 | `ScoreSystem` | ✓ | The scoring rules. Grades surface tricks (`whale:breach` + `whale:reentry` → airtime × flips × clean-entry), scores feeding / pod growth / choruses / ship close-passes / squid encounters, runs the flow (combo) chain (`config/scoring.ts`), and polls the whale for km / depth / pod-size milestones. Emits `score:award` / `score:milestone`. A new scored event is one `bus.on` + a row in `config/scoring.ts`. |
-| `SquidSystem` | ✓ | The deep-water squid harasser. Seed-derived lairs (deterministic, `config/squid.ts`) spawn/despawn one squid each by whale proximity, `MAX_ACTIVE` cap. Per squid: `systems/squid/SquidBrain.ts` runs the FSM (`lurk → stalk → strike → latched → flee → recover`) — the stalk slides into the blind spot behind the fluke, leads the target, shies from lit water / ship noise, and only strikes when close + lined up + aroused (a high flow-combo winds it up faster). While latched: writes `whale.grip` (thrust loss + backward drag, read by `PlayerBrain`), drains reserves (floored) + breath, and accrues `struggle` from tail-kicks / speed / surfacing / pod mobbing (`PodBrain` steers followers onto it). Non-lethal. Emits `squid:*`. |
+| `SquidSystem` | ✓ | Steps the level-placed squid (`state/Squid.ts`, one `squid` spawn directive). Only the ones near the camera run each frame; the rest hold at their lair. Per squid: `systems/squid/SquidBrain.ts` runs the FSM (`lurk → stalk → strike → latched → flee → recover`, tuned calm in `config/squid.ts`) — wakes only if the whale lingers deep + close, shadows the blind spot for `SHADOW_TIME`, gives one slow lunge, and flees a friendly song ring / the light / distance / the pod. While latched: writes `whale.grip` (thrust loss + light drag, read by `PlayerBrain`), drains a little reserves (floored) + breath, and accrues `struggle` from tail-kicks / speed / surfacing / pod mobbing (`PodBrain` steers followers onto it). One attempt per run (`COOLDOWN`). Non-lethal. Emits `squid:*`. |
 | `CameraSystem` | ✓ | Cinematic director (`systems/camera/CameraRig.ts`): follow spring with an anticipatory velocity lead, speed-aware zoom, a subtle bank into turns, trauma-based shake, and event-driven "shots" — `breach` pulls wide + tilts + drops into wall-clock slow-mo (`clock.timeScale`), `submerged` punches back in, `surfaced` / `pod:*` ease wide briefly. |
 | `BackgroundRenderer` | render | Water column, sky, god-rays, marine snow, caustics, depth vignette, animated waterline. |
 | `TerrainRenderer` | render | Seabed spline + lit rim. |
@@ -394,10 +395,11 @@ Plain classes, mutated in place by systems, serialized by `Snapshot`.
   static, regenerated from the seed, never serialized).
 - **`Hazards`** — `ShipStore`, `SongField` (`Ping[]`), `ParticleStore`
   (bubbles + marine snow).
-- **`Squid`** — `SquidStore` (`Squid[]` + cached `latched`). Each `Squid`:
-  position/velocity, `heading`/`jet`/`flare` pose, FSM `state`, `arousal`,
-  `struggle`, `grip` (attach point in the whale frame), seed-`lair` + `homeX/Y`,
-  `cool`. Procedural + transient — not serialized; the pool is cleared on load.
+- **`Squid`** — `SquidStore` (`Squid[]` + cached `latched`; `rest()` re-idles
+  them). Each `Squid`: position/velocity, `heading`/`jet`/`flare` pose, FSM
+  `state`, `age`/`linger`, `arousal`, `struggle`, `grip` (attach point in the
+  whale frame), `homeX/Y` lair, `cool`. Level-placed; not serialized — `rest()`
+  re-idles the whole pool on load.
 - **`RunStats`** — end-card tally + one-shot hint latches (`once(key)`).
 - **`Score`** — the arcade score layer: running `total`, `best` award, the flow
   chain (`comboStep`/`comboMul`/`comboUntil`), `lastAward` + `awardSeq` for the
@@ -428,9 +430,10 @@ level-builder tool reads and writes.
    `floorLit[]` (the sonar-lit seabed accumulator, decayed by `SongSystem`).
 3. **`world/level/apply.ts`** (`applyLevel`) — walks the file's `spawns` in
    order, dispatching each directive to its emitter in `world/level/emitters.ts`:
-   krill, fish schools, wild whales, ships, the marine-snow field, coral patches
-   (each mostly hosting a sheltering reef school). Directives are either
-   `scatter` (a parametric band stepped along x) or `place` (an explicit list).
+   krill, fish schools, wild whales, ships, deep-water squid, the marine-snow
+   field, coral patches (each mostly hosting a sheltering reef school).
+   Directives are either `scatter` (a parametric band stepped along x) or
+   `place` (an explicit list). A level with no `squid` directive has no squid.
    **Spawn order is the rng draw order** — one seeded stream, drawn in file
    order, so a fixed seed + `crossing.json` reproduces the pre-file world.
 
