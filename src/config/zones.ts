@@ -1,47 +1,34 @@
-/** Named stretches of the route. Each supplies its own water gradient colours.
- *  `id` is the stable key: used for water textures and the `zone.<id>` i18n
- *  lookup that produces the on-screen name. */
-export interface Zone {
-  x: number;
-  id: string;
-  shelf: number;
-  deep: number;
-}
+/** Named stretches of the route. Owned by the active level file
+ *  (`src/world/levels/<id>.json`); this module is the read-through renderers and
+ *  the HUD use. Each zone supplies its own water gradient colours and a surface
+ *  temperature anchor. `id` is the stable key: water textures + the `zone.<id>`
+ *  i18n lookup that produces the on-screen name. */
+import { getLevel } from "../world/level/active";
+import type { LevelZone } from "../world/level/schema";
 
-export const ZONES: Zone[] = [
-  { x: 0, id: "shelf", shelf: 0x17546f, deep: 0x0b2a3d },
-  { x: 30_000, id: "open-blue", shelf: 0x10405a, deep: 0x08192a },
-  { x: 62_000, id: "lane", shelf: 0x173f4c, deep: 0x0a1a22 },
-  { x: 88_000, id: "seamount", shelf: 0x134a5e, deep: 0x09182a },
-  { x: 110_000, id: "warm", shelf: 0x1c6272, deep: 0x102438 },
-];
+export type Zone = LevelZone;
+
+/** every zone on the active route, in order */
+export const zones = (): LevelZone[] => getLevel().zones;
 
 export function zoneAt(x: number): Zone {
-  let z = ZONES[0];
-  for (const c of ZONES) if (x >= c.x) z = c;
+  const zs = getLevel().zones;
+  let z = zs[0];
+  for (const c of zs) if (x >= c.x) z = c;
   return z;
 }
-
-/** approx surface water temperature (°C) at each zone anchor — the leg trends
- *  warm as the whale works south, which is the whole point of the crossing. */
-const ZONE_TEMP: Record<string, number> = {
-  shelf: 12,
-  "open-blue": 11,
-  lane: 13,
-  seamount: 16,
-  warm: 25,
-};
 
 /** Water temperature (°C) at world `x` and `depthM` metres down: the zone
  *  surface temperature interpolated along the route, then cooled with depth
  *  (a sharper drop below the ~30 m mixed layer). */
 export function waterTempC(x: number, depthM: number): number {
+  const zs = getLevel().zones;
   let i = 0;
-  for (let k = 0; k < ZONES.length; k++) if (x >= ZONES[k].x) i = k;
-  const a = ZONES[i];
-  const b = ZONES[Math.min(ZONES.length - 1, i + 1)];
+  for (let k = 0; k < zs.length; k++) if (x >= zs[k].x) i = k;
+  const a = zs[i];
+  const b = zs[Math.min(zs.length - 1, i + 1)];
   const f = b.x === a.x ? 0 : Math.min(1, Math.max(0, (x - a.x) / (b.x - a.x)));
-  const surf = ZONE_TEMP[a.id] + (ZONE_TEMP[b.id] - ZONE_TEMP[a.id]) * f;
+  const surf = a.tempC + (b.tempC - a.tempC) * f;
   const drop = depthM * 0.045 + Math.max(0, depthM - 30) * 0.03;
   return Math.max(4, surf - drop);
 }

@@ -135,7 +135,7 @@ export class PodBrain {
     const wdx = whale.x - b.x;
     const wdy = whale.y - b.y;
     const gap = dist(wdx, wdy);
-    
+
     if (gap > 1500) {
       const catchUp = clamp01((gap - 1500) / 2500);
       tx += (whale.x - whale.facing * 300 - tx) * catchUp;
@@ -145,39 +145,40 @@ export class PodBrain {
     // 3. Hunger & Feeding
     w.hunger = Math.min(1, w.hunger + dt * 0.02);
     let feeding = false;
-    
+
     if (w.hunger > 0.34 && gap < 1500) {
       let best: Swarm | null = null;
       let bestD = 2400;
-      
+
       for (const s of krill.swarms) {
         if (s.amount <= 15) continue;
-        
+
         // Fast vertical check (replaces Math.abs)
         const dy = s.y - whale.y;
-        if (dy > 1000 || dy < -1000) continue; 
-        
+        if (dy > 1000 || dy < -1000) continue;
+
         const sdx = s.x - b.x;
         const sdy = s.y - b.y;
-        
+
         // Manhattan bounding box early-out (avoids sqrt cost)
-        if (sdx > bestD || sdx < -bestD || sdy > bestD || sdy < -bestD) continue;
-        
+        if (sdx > bestD || sdx < -bestD || sdy > bestD || sdy < -bestD)
+          continue;
+
         const d = dist(sdx, sdy);
         if (d < bestD) {
           bestD = d;
           best = s;
         }
       }
-      
+
       if (best) {
         const pull = Math.min(0.55, w.hunger);
         tx += (best.x - tx) * pull;
         ty += (best.y - ty) * pull;
-        
+
         const bdx = best.x - b.x;
         const bdy = (best.y - b.y) * 1.4;
-        
+
         if (dist(bdx, bdy) < best.r0 + 150) {
           best.amount -= Math.min(best.amount, 24 * dt);
           best.lit = 1;
@@ -185,7 +186,7 @@ export class PodBrain {
           w.hunger = Math.max(0, w.hunger - dt * 1.1);
           w.stress = Math.max(0, w.stress - dt);
           feeding = true;
-          
+
           if (Math.random() < 0.2) {
             bus.emit("fx:bubbles", { x: b.x, y: b.y, count: 1, splash: false });
           }
@@ -204,10 +205,10 @@ export class PodBrain {
     const dy = ty - b.y;
     const distToTarget = dist(dx, dy) || 1;
     const leaderIdle = dist(whale.vx, whale.vy) < 45;
-    
-    const minSpeed = feeding ? 40 : (leaderIdle && distToTarget < 250 ? 15 : 90);
+
+    const minSpeed = feeding ? 40 : leaderIdle && distToTarget < 250 ? 15 : 90;
     const want = clamp(distToTarget * 1.6, minSpeed, 620);
-    
+
     des.x = (dx / distToTarget) * want + whale.vx * 0.35;
     des.y = (dy / distToTarget) * want + whale.vy * 0.35;
 
@@ -224,14 +225,14 @@ export class PodBrain {
     // 6. Separation (Boids-like repel)
     for (const o of crew) {
       if (o === w) continue;
-      
+
       const ox = b.x - o.body.x;
       // Early out limits sqrt processing
       if (ox > 150 || ox < -150) continue;
-      
+
       const oy = b.y - o.body.y;
       if (oy > 150 || oy < -150) continue;
-      
+
       const od = dist(ox, oy);
       if (od > 0.001 && od < 150) {
         const p = (150 - od) / 150;
@@ -252,11 +253,11 @@ export class PodBrain {
       if (sd > -2400 && sd < 2400 && b.y < 1600) {
         const absSd = sd >= 0 ? sd : -sd;
         const p = 1 - absSd / 2400;
-        
+
         // Fast substitute for Math.sign(sd || 1)
-        des.x += (sd >= 0 ? 1 : -1) * p * 220; 
+        des.x += (sd >= 0 ? 1 : -1) * p * 220;
         des.y += p * 340;
-        
+
         if (absSd < 1800 && b.y < 1200) noisy = true;
       }
     }

@@ -1,7 +1,7 @@
 /** The instrument panel: breath / reserves meters, zone name, leg distance, pod
  * dots and drafting readout. Pure DOM, driven each frame from the context. */
 import { UNIT_M } from "../config/constants";
-import { LEG, kmCovered, legLengthKm } from "../config/route";
+import { kmCovered, legId, legLengthKm } from "../config/route";
 import { waterTempC, zoneAt } from "../config/zones";
 import type { GameContext } from "../core/GameContext";
 import type { System } from "../core/System";
@@ -30,7 +30,7 @@ export class Hud implements System {
   private lastTemp = "";
 
   init(): void {
-    document.getElementById("goal")!.textContent = t(`leg.${LEG.id}.goal`);
+    document.getElementById("goal")!.textContent = t(`leg.${legId()}.goal`);
   }
 
   render(ctx: GameContext): void {

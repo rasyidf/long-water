@@ -420,6 +420,140 @@ body {
   }
 }
 
+/* ---- splash / loading ---- */
+.splash {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 64px;
+  background: var(--abyss);
+  transition: opacity 0.55s ease;
+}
+.splash.lift {
+  opacity: 0;
+  pointer-events: none;
+}
+.splash-stage {
+  position: relative;
+  width: 132px;
+  height: 108px;
+}
+.splash-frame {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  opacity: 0;
+}
+.splash-ico {
+  width: 96px;
+  height: auto;
+}
+.splash-ico.whale path {
+  fill: var(--song);
+}
+.splash-ico.whale .fin {
+  fill: var(--surface);
+  opacity: 0.85;
+}
+.splash-ico.wave {
+  width: 120px;
+  fill: none;
+  stroke: var(--song);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+}
+/* icon 1 -> icon 2, then both clear for the title card */
+.splash-frame.f1 {
+  animation: splashFrame 1s ease 0.1s both;
+}
+.splash-frame.f2 {
+  animation: splashFrame 1s ease 0.9s both;
+}
+@keyframes splashFrame {
+  0% {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+  24% {
+    opacity: 0.92;
+    transform: scale(1);
+  }
+  76% {
+    opacity: 0.92;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.03);
+  }
+}
+.splash-tail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  opacity: 0;
+  animation: splashIn 0.7s ease 1.75s forwards;
+}
+@keyframes splashIn {
+  to {
+    opacity: 1;
+  }
+}
+.splash-word {
+  font-family: Georgia, "Times New Roman", serif;
+  font-style: italic;
+  font-size: 15px;
+  letter-spacing: 0.06em;
+  opacity: 0.55;
+}
+.splash-bar {
+  width: 170px;
+  height: 2px;
+  background: rgba(222, 214, 198, 0.14);
+  overflow: hidden;
+}
+.splash-bar i {
+  display: block;
+  height: 100%;
+  width: 6%;
+  background: var(--song);
+  opacity: 0.7;
+  transition: width 0.45s ease;
+}
+.splash.failed .splash-word {
+  font-style: normal;
+  font-size: 13px;
+  max-width: 40ch;
+  text-align: center;
+  line-height: 1.6;
+  color: var(--alarm);
+  opacity: 0.9;
+}
+.splash.failed .splash-bar {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .splash {
+    transition: none;
+  }
+  .splash-frame.f2,
+  .splash-tail {
+    animation: none;
+    opacity: 1;
+  }
+  .splash-frame.f1 {
+    animation: none;
+    opacity: 0;
+  }
+}
+
 /* ---- pause menu ---- */
 .menu {
   position: fixed;

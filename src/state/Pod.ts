@@ -1,4 +1,5 @@
-/** Wild / answering / following whales. Populated by `WorldSpawner`. */
+/** Wild / answering / following whales. Populated by the level emitters
+ *  (`world/level/emitters.ts`). */
 import { WhaleBody } from "./WhaleBody";
 
 export type PodState = "wild" | "answered" | "following" | "lost";

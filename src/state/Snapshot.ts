@@ -7,15 +7,17 @@
  * seed, so the world and its entity counts are identical.
  */
 import type { GameContext } from "../core/GameContext";
+import { getLevel } from "../world/level/active";
 import type { PodState } from "./Pod";
 import { saveBody, type WhaleBodySave } from "./WhaleBody";
 
 const KEY = "long-water:save";
-const VERSION = 5; // bumped: pod whales persist breath + surfacing state
+const VERSION = 6; // bumped: save is tied to a level id
 
 interface SaveData {
   v: number;
   seed: number;
+  level: string;
   savedAt: number;
   stats: {
     answered: number;
@@ -67,6 +69,7 @@ export function save(ctx: GameContext): boolean {
   const data: SaveData = {
     v: VERSION,
     seed: ctx.rng.seedValue,
+    level: getLevel().id,
     savedAt: Date.now(),
     stats: {
       answered: ctx.stats.answered,
@@ -128,7 +131,12 @@ export function load(ctx: GameContext): boolean {
   } catch {
     return false;
   }
-  if (data.v !== VERSION || data.seed !== ctx.rng.seedValue) return false;
+  if (
+    data.v !== VERSION ||
+    data.seed !== ctx.rng.seedValue ||
+    data.level !== getLevel().id
+  )
+    return false;
 
   Object.assign(ctx.stats, {
     answered: data.stats.answered,

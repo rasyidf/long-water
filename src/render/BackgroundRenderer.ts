@@ -1,7 +1,7 @@
 /** Water column, sky, god-rays, marine snow, caustics and the depth vignette. */
 import { Texture } from "pixi.js";
 import { C, DARK_FULL, DARK_START, SUN_LEAN } from "../config/constants";
-import { ZONES, zoneAt } from "../config/zones";
+import { zoneAt, zones } from "../config/zones";
 import { lightAt } from "../core/light";
 import { clamp01, hash01 } from "../core/math";
 import type { GameContext } from "../core/GameContext";
@@ -22,7 +22,7 @@ export class BackgroundRenderer implements System {
   private waterTex: Record<string, Texture> = {};
 
   init(ctx: GameContext): void {
-    for (const z of ZONES) {
+    for (const z of zones()) {
       this.waterTex[z.id] = gradientTexture(
         [
           [0, hex(z.shelf)],

@@ -3,7 +3,7 @@
  * renders it. Add a card by writing another builder here and calling
  * `cards.show(myCard())` from wherever triggers it.
  */
-import { LEG, kmCovered, legLengthKm } from "../config/route";
+import { kmCovered, legId, legLengthKm } from "../config/route";
 import type { GameContext } from "../core/GameContext";
 import { has, t } from "../i18n";
 
@@ -43,7 +43,7 @@ export function endCard(ctx: GameContext, won: boolean): CardContent {
     chorus: stats.chorus,
   });
 
-  const spelledKey = `leg.${LEG.id}.distanceSpelled`;
+  const spelledKey = `leg.${legId()}.distanceSpelled`;
   const distance = won
     ? has(spelledKey)
       ? t(spelledKey)
