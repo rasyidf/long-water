@@ -11,6 +11,7 @@ import { ParticleStore, ShipStore, SongField } from "../state/Hazards";
 import { Pod } from "../state/Pod";
 import { PlayerWhale } from "../state/PlayerWhale";
 import { RunStats } from "../state/RunStats";
+import { Score } from "../state/Score";
 import { Heightfield } from "../world/Heightfield";
 import {
   buildPreviewScene,
@@ -39,6 +40,7 @@ import { ParticleSystem } from "../systems/ParticleSystem";
 import { PodSystem } from "../systems/PodSystem";
 import { PreviewDirector } from "../systems/PreviewDirector";
 import { SchoolSystem } from "../systems/SchoolSystem";
+import { ScoreSystem } from "../systems/ScoreSystem";
 import { ShipSystem } from "../systems/ShipSystem";
 import { SongSystem } from "../systems/SongSystem";
 import { VitalsSystem } from "../systems/VitalsSystem";
@@ -57,6 +59,7 @@ import { Cards } from "../hud/Cards";
 import { DepthRuler } from "../hud/DepthRuler";
 import { Hints } from "../hud/Hints";
 import { Hud } from "../hud/Hud";
+import { ScoreHud } from "../hud/ScoreHud";
 import { PauseMenu } from "../hud/PauseMenu";
 
 /** Ordered boot milestones, reported to `boot`'s `onProgress` for the splash. */
@@ -158,6 +161,7 @@ export class Game {
       song: new SongField(),
       particles,
       stats: new RunStats(),
+      score: new Score(),
       running: false,
     };
 
@@ -201,6 +205,7 @@ export class Game {
       new SchoolSystem(),
       new ShipSystem(),
       new ParticleSystem(),
+      new ScoreSystem(),
       new CameraSystem(),
 
       new BackgroundRenderer(),
@@ -213,6 +218,7 @@ export class Game {
       new GlowRenderer(),
 
       new Hud(),
+      new ScoreHud(),
       new DepthRuler(),
       new Hints(),
       new Cards(),

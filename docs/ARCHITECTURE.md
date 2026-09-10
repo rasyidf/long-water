@@ -160,7 +160,8 @@ State machine per wild whale: **wild → answered → following → lost**.
 - **Restart:** press **R** on the end card (a full reload — a fresh run of the
   same seeded world).
 - **End card** tallies the run: whales answered, joined, lost to ship noise,
-  still trailing at the end; swarms fed on; choruses sung.
+  still trailing at the end; swarms fed on; choruses sung; total score and the
+  best single trick.
 
 Target run length: ~3–6 minutes depending on route and how much the player
 detours to feed and recruit.
@@ -197,7 +198,11 @@ into the level file is the obvious next step.
 ## 11. UI / HUD
 
 - **Top-left:** current zone name; leg progress (`X.X of 12.0 km`).
+- **Top-right:** score counter (eases up to the running total), then the day
+  clock and water temperature.
 - **Goal line:** one sentence, per-leg.
+- **Trick popup (upper third):** transient label + points (+ flow multiplier)
+  on each `score:award` / `score:milestone`; fades like the hint line.
 - **Instruments:** breath meter, reserves meter, pod dot-count with the current
   drafting percentage.
 - **Hint line (bottom-left):** a single transient coaching sentence, event-driven,
@@ -308,7 +313,7 @@ communicate through one typed event bus.
 ```ts
 interface GameContext {
   app; bus; rng; clock; camera; input; layers; world; level;   // services
-  whale; pod; krill; schools; coral; ships; song; particles; stats;  // stores
+  whale; pod; krill; schools; coral; ships; song; particles; stats; score;  // stores
   running: boolean;
 }
 ```
@@ -321,7 +326,9 @@ Audio: `audio:volume`, `audio:call {f0,f1,dur,vol,delay?}`.
 Song/pod: `song:emitted {x,y,strength,friendly,chorus}`, `pod:answered`,
 `pod:joined`, `pod:lost`, `pod:chorus`.
 Whale: `whale:surfaced {impactVy,pos}`, `whale:submerged {pos}`,
-`whale:breach {flips,up,pos}`, `krill:fed`.
+`whale:breach {flips,up,pos}`, `whale:reentry {airtime,entryVy,entrySpeed,turns,cleanArc,pos}`,
+`krill:fed`.
+Score: `score:award {points,label,mult,pos?}`, `score:milestone {id,label,points}`.
 HUD/FX: `hint:show {text,secs}`, `fx:shake`, `fx:bubbles`.
 
 ## 4. Systems
@@ -338,6 +345,7 @@ HUD/FX: `hint:show {text,secs}`, `fx:shake`, `fx:bubbles`.
 | `SchoolSystem` | ✓ | Fish boids (cohesion/alignment/separation + whale avoidance). Cosmetic — not food. Reef schools (with a coral `home`) take cover in the coral as the whale nears and spill out again after. |
 | `ShipSystem` | ✓ | Advances ships along the lane. Noise footprint is read by `PodBrain`. |
 | `ParticleSystem` | ✓ | Bubble pool; integrates and culls. Listens for `fx:bubbles`. |
+| `ScoreSystem` | ✓ | The scoring rules. Grades surface tricks (`whale:breach` + `whale:reentry` → airtime × flips × clean-entry), scores feeding / pod growth / choruses / ship close-passes, runs the flow (combo) chain (`config/scoring.ts`), and polls the whale for km / depth / pod-size milestones. Emits `score:award` / `score:milestone`. A new scored event is one `bus.on` + a row in `config/scoring.ts`. |
 | `CameraSystem` | ✓ | Cinematic director (`systems/camera/CameraRig.ts`): follow spring with an anticipatory velocity lead, speed-aware zoom, a subtle bank into turns, trauma-based shake, and event-driven "shots" — `breach` pulls wide + tilts + drops into wall-clock slow-mo (`clock.timeScale`), `submerged` punches back in, `surfaced` / `pod:*` ease wide briefly. |
 | `BackgroundRenderer` | render | Water column, sky, god-rays, marine snow, caustics, depth vignette, animated waterline. |
 | `TerrainRenderer` | render | Seabed spline + lit rim. |
@@ -346,7 +354,7 @@ HUD/FX: `hint:show {text,secs}`, `fx:shake`, `fx:bubbles`.
 | `WhaleRenderer` | render | Every whale, via a `WhaleView`; whale-adjacent bubbles. |
 | `ShipRenderer` | render | Hulls + faint noise footprint. |
 | `GlowRenderer` | render | Additive bloom: lit seabed, lit fauna, song rings. |
-| `Hud`, `DepthRuler`, `Hints`, `Cards`, `PauseMenu` | render / init | DOM + canvas HUD (see §8). |
+| `Hud`, `ScoreHud`, `DepthRuler`, `Hints`, `Cards`, `PauseMenu` | render / init | DOM + canvas HUD (see §8). `ScoreHud` eases the score counter and flashes the trick popup on `score.awardSeq`. |
 
 ### Determinism
 
@@ -377,6 +385,9 @@ Plain classes, mutated in place by systems, serialized by `Snapshot`.
 - **`Hazards`** — `ShipStore`, `SongField` (`Ping[]`), `ParticleStore`
   (bubbles + marine snow).
 - **`RunStats`** — end-card tally + one-shot hint latches (`once(key)`).
+- **`Score`** — the arcade score layer: running `total`, `best` award, the flow
+  chain (`comboStep`/`comboMul`/`comboUntil`), `lastAward` + `awardSeq` for the
+  HUD, and the `milestones` latch set. Rules live in `ScoreSystem`.
 - **`Trail`** — the player's swum path: a point list, front stretch low-passed
   so it can't hold a turn sharper than a body could make. `pointBeside(dist,
   side)` gives pod formation anchors.

@@ -40,6 +40,27 @@ export const en: Record<string, string> = {
   "card.title.keys.space": "sing, and call the pod in with you",
   "card.title.keys.esc": "pause",
 
+  // trick / milestone popups (score layer)
+  "trick.breach": "Breach",
+  "trick.breachBig": "Soaring Breach",
+  "trick.flip1": "Backflip",
+  "trick.flip2": "Double Backflip",
+  "trick.flip3": "Triple Backflip",
+  "trick.clean": "Clean Entry",
+  "trick.bellyFlop": "Belly Flop",
+  "trick.splashFeast": "Splashdown Feast",
+  "trick.feast": "Krill Feast",
+  "trick.podJoin": "Whale Joined",
+  "trick.chorus": "Chorus",
+  "trick.closePass": "Close Pass",
+  "milestone.distance": "{km} km down",
+  "milestone.depth.dark": "Into the dark",
+  "milestone.depth.deep": "The deep water",
+  "milestone.depth.abyssal": "The abyss",
+  "milestone.pod.1": "The pod begins",
+  "milestone.pod.3": "A travelling pod",
+  "milestone.pod.6": "A full chorus line",
+
   // end card
   "card.end.win.h1": "Warm water<br><em>you made the crossing</em>",
   "card.end.lose.h1": "Out of reserves<br><em>the leg ends here</em>",
@@ -48,8 +69,9 @@ export const en: Record<string, string> = {
   "card.end.stats":
     "{answered} whales answered, {joined} joined you, {lost} were driven off " +
     "by ship noise. {behind} still behind you at the end. {fed} swarms fed on, " +
-    "{chorus} calls sung together.",
+    "{chorus} calls sung together. {score} points, best {best}.",
   "card.end.restart": "Press R to swim it again",
+  "card.end.bestNone": "no trick landed",
 
   // pause menu
   "menu.title": "Paused",

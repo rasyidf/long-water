@@ -30,11 +30,18 @@ export class WhaleSystem implements System {
   private readonly playerBrain = new PlayerBrain();
   private readonly podBrain = new PodBrain();
 
+  /** `clock.t` the player last cleared the surface going up, or -1 when in the
+   *  water; `airTurns` the breach roll count for that hop (0 = a plain hop) */
+  private airAt = -1;
+  private airTurns = 0;
+
   constructor(private readonly simulate = true) {}
 
   init(ctx: GameContext): void {
     ctx.bus.on("game:restart", () => {
       this.playerBrain.reset();
+      this.airAt = -1;
+      this.airTurns = 0;
       const b = ctx.whale.body;
       b.roll = 0;
       b.rollVel = 0;
@@ -80,6 +87,11 @@ export class WhaleSystem implements System {
   private emitSurface(ctx: GameContext, out: LocoOut, x: number): void {
     const { bus } = ctx;
     if (out.crossedUp > 0) {
+      // remember the launch so the re-entry can be scored as one maneuver
+      if (out.crossedUp > 140 && this.airAt < 0) {
+        this.airAt = ctx.clock.t;
+        this.airTurns = 0;
+      }
       const p = Math.min(1, out.crossedUp / 420);
       bus.emit("fx:shake", p * 16);
       bus.emit("fx:bubbles", {
@@ -95,6 +107,7 @@ export class WhaleSystem implements System {
         pos: { x, y: 0 },
       });
       if (out.breachTurns > 0) {
+        this.airTurns = out.breachTurns;
         bus.emit("fx:shake", 6);
         bus.emit("whale:breach", {
           flips: out.breachTurns,
@@ -107,6 +120,26 @@ export class WhaleSystem implements System {
       bus.emit("fx:shake", 10);
       bus.emit("fx:bubbles", { x, y: 0, count: 30, splash: true, spread: 160 });
       bus.emit("whale:submerged", { pos: { x, y: 0 } });
+
+      if (this.airAt >= 0) {
+        const b = ctx.whale.body;
+        // clean entry = came down steep and nose-first; belly-flop = came down
+        // flat. Blend the dive steepness with how square the barrel roll landed
+        // to a whole number of turns.
+        const steep = b.speed > 1 ? Math.min(1, Math.abs(b.vy) / b.speed) : 1;
+        const frac = b.roll / (Math.PI * 2);
+        const rollOff = Math.abs(frac - Math.round(frac)); // 0..0.5
+        bus.emit("whale:reentry", {
+          airtime: ctx.clock.t - this.airAt,
+          entryVy: b.vy,
+          entrySpeed: b.speed,
+          turns: this.airTurns,
+          cleanArc: 0.6 * steep + 0.4 * (1 - 2 * rollOff),
+          pos: { x, y: 0 },
+        });
+        this.airAt = -1;
+        this.airTurns = 0;
+      }
     }
   }
 }

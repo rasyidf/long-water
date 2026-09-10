@@ -19,6 +19,7 @@ import type { ParticleStore, ShipStore, SongField } from "../state/Hazards";
 import type { Pod } from "../state/Pod";
 import type { PlayerWhale } from "../state/PlayerWhale";
 import type { RunStats } from "../state/RunStats";
+import type { Score } from "../state/Score";
 
 export interface GameContext {
   readonly app: Application;
@@ -41,6 +42,7 @@ export interface GameContext {
   readonly song: SongField;
   readonly particles: ParticleStore;
   readonly stats: RunStats;
+  readonly score: Score;
 
   /** true once the player has taken the first breath; false again after game over */
   running: boolean;
