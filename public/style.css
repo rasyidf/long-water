@@ -41,33 +41,147 @@ body {
   pointer-events: none;
 }
 
-.zone {
-  top: 24px;
-  left: 30px;
+/* ---- top bar ---- */
+.topbar {
+  top: 0;
+  left: 0;
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: start;
+  gap: 24px;
+  padding: 16px 30px 22px;
+  color: var(--bone);
+  background: linear-gradient(
+    180deg,
+    rgba(4, 10, 18, 0.5),
+    rgba(4, 10, 18, 0.16) 62%,
+    rgba(4, 10, 18, 0)
+  );
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+  -webkit-mask-image: linear-gradient(180deg, #000 55%, transparent);
+  mask-image: linear-gradient(180deg, #000 55%, transparent);
+}
+
+.tb-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.tb-left .wave-mark {
+  width: 30px;
+  height: 20px;
+  flex: none;
+  fill: none;
+  stroke: var(--song);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  opacity: 0.6;
+}
+.tb-zone {
   font-family: Georgia, "Times New Roman", serif;
   font-style: italic;
-  font-size: 21px;
-  opacity: 0.85;
+  font-size: 20px;
+  opacity: 0.9;
 }
-.zone .leg {
+.tb-zone .leg {
   display: block;
   font-style: normal;
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
   font-size: 12px;
   letter-spacing: 0.04em;
   opacity: 0.5;
-  margin-top: 5px;
+  margin-top: 4px;
   font-variant-numeric: tabular-nums;
-  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
 }
 
-.goal {
-  top: 24px;
+.tb-mid {
+  justify-self: center;
+  text-align: center;
+  max-width: 40ch;
+}
+.compass {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+.compass .pole {
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  opacity: 0.45;
+}
+.compass .strip {
+  position: relative;
+  width: min(240px, 26vw);
+  height: 12px;
+  background: linear-gradient(rgba(222, 214, 198, 0.32), rgba(222, 214, 198, 0.32))
+      left center / 100% 1px no-repeat,
+    repeating-linear-gradient(
+        90deg,
+        rgba(222, 214, 198, 0.22) 0 1px,
+        transparent 1px 14px
+      )
+      center / 100% 5px no-repeat;
+}
+.compass .strip b {
+  position: absolute;
+  top: 50%;
   left: 50%;
-  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border: 5px solid transparent;
+  border-top-color: var(--song);
+  transform: translate(-50%, -78%);
+  transition: left 0.35s ease;
+}
+.goal {
+  margin-top: 9px;
   font-size: 12.5px;
   letter-spacing: 0.05em;
-  opacity: 0.4;
-  text-align: center;
+  opacity: 0.42;
+  font-style: italic;
+  font-family: Georgia, "Times New Roman", serif;
+}
+
+.tb-right {
+  justify-self: end;
+  display: flex;
+  flex-direction: column;
+  align-items: end;
+  gap: 8px;
+  font-variant-numeric: tabular-nums;
+}
+.tb-gauge {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  letter-spacing: 0.04em;
+  opacity: 0.82;
+}
+.tb-gauge span {
+  padding-left: 10px;
+  border-left: 1px solid rgba(222, 214, 198, 0.22);
+}
+.tb-gauge .tb-ico {
+  width: 17px;
+  height: 17px;
+  flex: none;
+  fill: none;
+  stroke: var(--bone);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.7;
+}
+.tb-gauge .tb-ico .rays {
+  opacity: 0.85;
+}
+.tb-gauge .tb-ico .tb-ico-fill {
+  stroke: var(--surface);
+  stroke-width: 3;
 }
 
 .instruments {
@@ -219,11 +333,11 @@ body {
   top: 0;
   right: 0;
   height: 100%;
-  width: 78px;
+  width: 120px;
 }
 .ruler canvas {
   display: block;
-  width: 78px;
+  width: 120px;
   height: 100%;
 }
 

@@ -21,3 +21,27 @@ export function zoneAt(x: number): Zone {
   for (const c of ZONES) if (x >= c.x) z = c;
   return z;
 }
+
+/** approx surface water temperature (°C) at each zone anchor — the leg trends
+ *  warm as the whale works south, which is the whole point of the crossing. */
+const ZONE_TEMP: Record<string, number> = {
+  shelf: 12,
+  "open-blue": 11,
+  lane: 13,
+  seamount: 16,
+  warm: 25,
+};
+
+/** Water temperature (°C) at world `x` and `depthM` metres down: the zone
+ *  surface temperature interpolated along the route, then cooled with depth
+ *  (a sharper drop below the ~30 m mixed layer). */
+export function waterTempC(x: number, depthM: number): number {
+  let i = 0;
+  for (let k = 0; k < ZONES.length; k++) if (x >= ZONES[k].x) i = k;
+  const a = ZONES[i];
+  const b = ZONES[Math.min(ZONES.length - 1, i + 1)];
+  const f = b.x === a.x ? 0 : Math.min(1, Math.max(0, (x - a.x) / (b.x - a.x)));
+  const surf = ZONE_TEMP[a.id] + (ZONE_TEMP[b.id] - ZONE_TEMP[a.id]) * f;
+  const drop = depthM * 0.045 + Math.max(0, depthM - 30) * 0.03;
+  return Math.max(4, surf - drop);
+}

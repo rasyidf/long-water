@@ -11,11 +11,46 @@
   <body>
     <div id="app"><div id="pixi-container"></div></div>
 
-    <div class="hud zone">
-      <span id="zoneName">Continental shelf</span>
-      <span class="leg" id="leg">0.0 of 12.0 km</span>
+    <div class="hud topbar">
+      <div class="tb-left">
+        <svg viewBox="0 0 30 20" class="wave-mark" aria-hidden="true">
+          <path d="M1 7C5.5 7 5.5 3 10 3C14.5 3 14.5 7 19 7C23.5 7 23.5 3 28 3" />
+          <path d="M1 14C5.5 14 5.5 10 10 10C14.5 10 14.5 14 19 14C23.5 14 23.5 10 28 10" />
+        </svg>
+        <div class="tb-zone">
+          <span id="zoneName">Continental shelf</span>
+          <span class="leg" id="leg">0.0 of 12.0 km</span>
+        </div>
+      </div>
+
+      <div class="tb-mid">
+        <div class="compass">
+          <span class="pole">S</span>
+          <span class="strip"><b id="compassNeedle"></b></span>
+          <span class="pole">N</span>
+        </div>
+        <div class="goal" id="goal">South to warm water. The krill is below the light.</div>
+      </div>
+
+      <div class="tb-right">
+        <div class="tb-gauge">
+          <svg viewBox="0 0 24 24" class="tb-ico" aria-hidden="true">
+            <circle cx="12" cy="12" r="4.4" />
+            <g class="rays">
+              <path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.2 5.2l2.1 2.1M16.7 16.7l2.1 2.1M18.8 5.2l-2.1 2.1M7.3 16.7l-2.1 2.1" />
+            </g>
+          </svg>
+          <span id="clock">08:00</span>
+        </div>
+        <div class="tb-gauge">
+          <svg viewBox="0 0 24 24" class="tb-ico" aria-hidden="true">
+            <path d="M10 4.5a2 2 0 0 1 4 0v9a4 4 0 1 1-4 0Z" />
+            <path d="M12 9v5.2" class="tb-ico-fill" />
+          </svg>
+          <span id="temp">12°</span>
+        </div>
+      </div>
     </div>
-    <div class="hud goal" id="goal">South to warm water. The krill is below the light.</div>
 
     <div class="hud instruments">
       <div class="badge" aria-hidden="true">
