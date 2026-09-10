@@ -184,6 +184,75 @@ body {
   stroke-width: 3;
 }
 
+.tb-score {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-bottom: 4px;
+  font-variant-numeric: tabular-nums;
+}
+.tb-score b {
+  font-size: 22px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: var(--song);
+}
+.tb-score span {
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  opacity: 0.4;
+}
+
+/* ---- trick popup ---- */
+.trickpop {
+  left: 0;
+  right: 0;
+  top: 30%;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+.trickpop.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+.trickpop .lbl {
+  font-family: Georgia, "Times New Roman", serif;
+  font-style: italic;
+  font-size: 22px;
+  letter-spacing: 0.02em;
+  color: var(--bone);
+  text-shadow: 0 2px 18px rgba(4, 10, 18, 0.8);
+}
+.trickpop .pts {
+  font-size: 15px;
+  letter-spacing: 0.06em;
+  color: var(--song);
+  font-variant-numeric: tabular-nums;
+}
+.trickpop .pts b {
+  color: var(--krill);
+  font-weight: 600;
+  margin-left: 4px;
+}
+.trickpop.big .lbl {
+  font-size: 30px;
+  color: var(--song);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .trickpop {
+    transition: opacity 0.3s ease;
+    transform: none;
+  }
+}
+
 .instruments {
   left: 26px;
   bottom: 26px;

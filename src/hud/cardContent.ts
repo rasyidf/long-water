@@ -33,7 +33,10 @@ export function titleCard(): CardContent {
 }
 
 export function endCard(ctx: GameContext, won: boolean): CardContent {
-  const { stats, whale, pod } = ctx;
+  const { stats, score, whale, pod } = ctx;
+  const best = score.best
+    ? `${score.best.label} (${score.best.points})`
+    : t("card.end.bestNone");
   const stat = t("card.end.stats", {
     answered: stats.answered,
     joined: stats.joined,
@@ -41,6 +44,8 @@ export function endCard(ctx: GameContext, won: boolean): CardContent {
     behind: pod.followers().length,
     fed: stats.fed,
     chorus: stats.chorus,
+    score: score.total.toLocaleString(),
+    best,
   });
 
   const spelledKey = `leg.${legId()}.distanceSpelled`;

@@ -49,7 +49,24 @@ export interface GameEvents {
   /** the whale left the water fast enough to somersault; `flips` full turns,
    * `up` the upward speed at the surface (drives the cinematic's airtime) */
   "whale:breach": { flips: number; up: number; pos: Vec2 };
+  /** the whale came back down after clearing the surface — pairs with the
+   * exit for trick scoring. `cleanArc` 0..1 = how square the re-entry was to a
+   * whole number of turns (1 = nose-first, 0 = belly-flop). */
+  "whale:reentry": {
+    airtime: number;
+    entryVy: number;
+    entrySpeed: number;
+    turns: number;
+    cleanArc: number;
+    pos: Vec2;
+  };
   "krill:fed": { swarmsFed: number };
+
+  /** points banked — a trick, a feed, or a close pass. `mult` is the flow
+   * multiplier already folded into `points`. */
+  "score:award": { points: number; label: string; mult: number; pos?: Vec2 };
+  /** a one-shot route / pod / depth milestone was reached */
+  "score:milestone": { id: string; label: string; points: number };
 
   /** request a transient on-screen hint */
   "hint:show": { text: string; secs: number };

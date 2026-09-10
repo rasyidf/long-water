@@ -9,10 +9,11 @@
 import type { GameContext } from "../core/GameContext";
 import { getLevel } from "../world/level/active";
 import type { PodState } from "./Pod";
+import type { ScoreAward } from "./Score";
 import { saveBody, type WhaleBodySave } from "./WhaleBody";
 
 const KEY = "long-water:save";
-const VERSION = 6; // bumped: save is tied to a level id
+const VERSION = 7; // bumped: carries the score layer
 
 interface SaveData {
   v: number;
@@ -26,6 +27,11 @@ interface SaveData {
     fed: number;
     chorus: number;
     shown: string[];
+  };
+  score: {
+    total: number;
+    best: ScoreAward | null;
+    milestones: string[];
   };
   whale: {
     body: WhaleBodySave;
@@ -78,6 +84,11 @@ export function save(ctx: GameContext): boolean {
       fed: ctx.stats.fed,
       chorus: ctx.stats.chorus,
       shown: [...ctx.stats.shown],
+    },
+    score: {
+      total: ctx.score.total,
+      best: ctx.score.best,
+      milestones: [...ctx.score.milestones],
     },
     whale: {
       body: saveBody(ctx.whale.body),
@@ -147,6 +158,11 @@ export function load(ctx: GameContext): boolean {
   });
   ctx.stats.shown.clear();
   for (const k of data.stats.shown) ctx.stats.shown.add(k);
+
+  ctx.score.reset();
+  ctx.score.total = data.score.total;
+  ctx.score.best = data.score.best;
+  for (const m of data.score.milestones) ctx.score.milestones.add(m);
 
   const wb = ctx.whale.body;
   Object.assign(wb, data.whale.body);
