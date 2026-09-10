@@ -46,11 +46,17 @@ export class KrillRenderer implements System {
       const v = Math.max(lightAt(s.y) * 0.75, s.lit);
       const hidden = s.amount <= 0 || v < 0.05 || Math.abs(s.x - cam.x) > 5600;
       const a = hidden ? 0 : Math.min(1, v);
+      // `FeedingSystem` pops parts as the whale eats a swarm, so `s.parts`
+      // shrinks under `row`; the surplus particles just idle at alpha 0.
+      const live = s.parts.length;
       for (let i = 0; i < row.length; i++) {
-        const part = s.parts[i];
         const p = row[i];
+        if (a === 0 || i >= live) {
+          p.alpha = 0;
+          continue;
+        }
+        const part = s.parts[i];
         p.alpha = a;
-        if (a === 0) continue;
         p.x = cam.sx(part.px);
         p.y = cam.sy(part.py);
       }
