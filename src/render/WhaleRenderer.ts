@@ -40,6 +40,10 @@ export class WhaleRenderer implements System {
         alpha = Math.min(0.92, v);
       }
 
+      // skip whales whose whole body is off the side of the viewport
+      const [vx0, vx1] = cam.visibleX(b.len);
+      if (b.x < vx0 || b.x > vx1) continue;
+
       this.view.draw(
         wg,
         b.spine,
@@ -53,6 +57,7 @@ export class WhaleRenderer implements System {
           juv,
           roll: b.roll,
           rollK: b.rollBlend,
+          seed: (w.ph * 131 + b.len) | 0,
         },
         cam,
       );

@@ -26,6 +26,8 @@ export interface WhaleDrawOptions {
   roll?: number;
   /** 0..1 strength of the `roll` distortion, for easing it in and out. */
   rollK?: number;
+  /** per-whale seed so each body in a pod gets its own skin mottling. */
+  seed?: number;
 }
 
 export interface WhaleView {

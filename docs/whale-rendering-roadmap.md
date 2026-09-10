@@ -6,6 +6,30 @@ A comprehensive tracking document for whale rendering bugs, quality improvements
 
 ---
 
+## Progress — 2026-09-10 (first pass, on `main`)
+
+Implemented in one rewrite of `ProceduralWhaleView.ts` (+ `WhaleView.ts`, `WhaleRenderer.ts`). Verified: `tsc` + `eslint` clean. **Not yet verified in-game.**
+
+| Done | Partial | Deferred (needs a decision or its own session) |
+|---|---|---|
+| #1 hull self-intersection | #3 mixColor cache done; fill-object reuse skipped (Pixi-internals risk) | #9 fluke pitch — #5's smoothed tangent already bends the root; explicit rotation math is unverifiable without rendering |
+| #2 roll edge blending (via blended `th`/`bh`, identical at level) | #8 dorsal fin scales with `juv`; fluke/eye left | #14 fluke span vs roll — **decision needed** (authentic vs legible) |
+| #4 degenerate spine guard | #18 STEPS quantised to 3 tiers + fleck fade-in; true hysteresis needs per-whale state (view is shared) | #15 layer alpha — needs an interface/arch change (shared Graphics; pass a water colour or move to a filter) |
+| #5 smoothed vertex tangents + interp | #24 gape end pulled forward/up; eye-vs-corner geometry left | #16 soft countershade edges — aesthetic |
+| #6 arc-length parameterisation | | #22 blue-whale colouring — aesthetic, wants side-by-side review |
+| #7 feature offsets scale with body (`featK`) | | #23 throat pleats — new feature, wants visual review |
+| #10 rim light on at all rolls | | #25 rostrum tip — cosmetic, tiny magnitude |
+| #11 mottling gate + girth spread | | #26 Mesh + shader rewrite — major, own session |
+| #12 eye/jaw gate → `abs(cr)` | | #27 extract pure geometry + unit tests — no test runner installed (add vitest) |
+| #13 far-side flipper under hull, opaque | | |
+| #17 fluke drawn before hull | | |
+| #19 per-whale mottle seed (`opts.seed`) | | |
+| #20 `MAX_STEPS` corrected (44 → 40) | | |
+| #21 `smoothstep` verified correct (comment added) | | |
+| #28 viewport culling in `WhaleRenderer` | | |
+
+---
+
 ## Bugs (Breaking/Visual Corruption)
 
 ### 1. Hull outline self-intersection at rostrum
