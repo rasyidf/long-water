@@ -489,7 +489,9 @@ body {
   }
 }
 
-/* ---- splash / loading ---- */
+/* ---- splash / loading ----
+   BWDX Studio bumper fades in and out, then the logo fades in and holds
+   (both centred on screen); the progress bar sits just below the logo. */
 .splash {
   position: fixed;
   inset: 0;
@@ -498,7 +500,7 @@ body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 64px;
+  gap: 30px;
   background: var(--abyss);
   transition: opacity 0.55s ease;
 }
@@ -506,42 +508,40 @@ body {
   opacity: 0;
   pointer-events: none;
 }
+/* the logo (in normal flow) sizes the stage; the bumper overlays it */
 .splash-stage {
   position: relative;
-  width: 132px;
-  height: 108px;
+  width: min(440px, 78vw);
 }
-.splash-frame {
+.splash-logo {
+  display: block;
+  width: 100%;
+  height: auto;
+  opacity: 0;
+  filter: drop-shadow(0 14px 40px rgba(140, 166, 206, 0.4));
+  animation: splashHold 0.7s cubic-bezier(0.2, 0.9, 0.3, 1) 0.95s both;
+}
+.splash-bumper {
   position: absolute;
   inset: 0;
-  display: grid;
-  place-items: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
   opacity: 0;
-}
-.splash-ico {
-  width: 96px;
-  height: auto;
-}
-.splash-ico.whale path {
-  fill: var(--song);
-}
-.splash-ico.whale .fin {
-  fill: var(--surface);
-  opacity: 0.85;
-}
-.splash-ico.wave {
-  width: 120px;
-  fill: none;
-  stroke: var(--song);
-  stroke-width: 1.6;
-  stroke-linecap: round;
-}
-/* icon 1 -> icon 2, then both clear for the title card */
-.splash-frame.f1 {
   animation: splashFrame 1s ease 0.1s both;
 }
-.splash-frame.f2 {
-  animation: splashFrame 1s ease 0.9s both;
+.splash-bumper img {
+  width: 86px;
+  height: auto;
+}
+.splash-bumper span {
+  font-size: 11px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--bone);
+  opacity: 0.5;
 }
 @keyframes splashFrame {
   0% {
@@ -561,13 +561,23 @@ body {
     transform: scale(1.03);
   }
 }
+@keyframes splashHold {
+  from {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
 .splash-tail {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 14px;
   opacity: 0;
-  animation: splashIn 0.7s ease 1.75s forwards;
+  animation: splashIn 0.7s ease 1.3s forwards;
 }
 @keyframes splashIn {
   to {
@@ -580,6 +590,10 @@ body {
   font-size: 15px;
   letter-spacing: 0.06em;
   opacity: 0.55;
+}
+/* empty in the normal case — only holds the error text if boot fails */
+.splash-word:empty {
+  display: none;
 }
 .splash-bar {
   width: 170px;
@@ -612,12 +626,12 @@ body {
   .splash {
     transition: none;
   }
-  .splash-frame.f2,
+  .splash-logo,
   .splash-tail {
     animation: none;
     opacity: 1;
   }
-  .splash-frame.f1 {
+  .splash-bumper {
     animation: none;
     opacity: 0;
   }
