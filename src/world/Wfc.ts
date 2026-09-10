@@ -6,6 +6,25 @@
 import { RULES, TI, TILES } from "../config/tiles";
 import type { Rng } from "../core/rng";
 
+export interface WfcOpts {
+  /** per-tile weight multiplier on top of `TILES[i].weight` */
+  weights?: Record<string, number>;
+  /** allowed tile names for cells 0,1,… (default `[["shelf"],["shelf"]]`) */
+  pinStart?: string[][];
+  /** allowed tile names for cells n-1,n-2,… (default `[["shelf"],["shelf","slope"]]`) */
+  pinEnd?: string[][];
+}
+
+const DEFAULT_PIN_START: string[][] = [["shelf"], ["shelf"]];
+const DEFAULT_PIN_END: string[][] = [["shelf"], ["shelf", "slope"]];
+
+/** OR together the bits for a list of tile names */
+function maskOf(names: string[]): number {
+  let m = 0;
+  for (const n of names) m |= 1 << TI[n];
+  return m;
+}
+
 const ADJ = new Uint8Array(TILES.length);
 (function buildAdj() {
   const m = TILES.map(() => 0);
@@ -58,14 +77,21 @@ function propagate(dom: number[]): boolean {
 }
 
 /** Collapse `n` cells into concrete tile indices. Falls back to all-plain. */
-export function wfc(n: number, rng: Rng): number[] {
+export function wfc(n: number, rng: Rng, opts: WfcOpts = {}): number[] {
+  const pinStart = opts.pinStart ?? DEFAULT_PIN_START;
+  const pinEnd = opts.pinEnd ?? DEFAULT_PIN_END;
+  const weight = (t: number): number =>
+    TILES[t].weight * (opts.weights?.[TILES[t].name] ?? 1);
+
   for (let attempt = 0; attempt < 60; attempt++) {
     const dom = new Array<number>(n).fill(FULL);
-    // route starts on the shelf, ends in shallow warm water
-    dom[0] = 1 << TI.shelf;
-    dom[1] = 1 << TI.shelf;
-    dom[n - 1] = 1 << TI.shelf;
-    dom[n - 2] = (1 << TI.shelf) | (1 << TI.slope);
+    // pin the route ends (default: starts on the shelf, ends in shallow water)
+    pinStart.forEach((names, i) => {
+      if (i < n) dom[i] = maskOf(names);
+    });
+    pinEnd.forEach((names, i) => {
+      if (n - 1 - i >= 0) dom[n - 1 - i] = maskOf(names);
+    });
     if (!propagate(dom)) continue;
 
     let ok = true;
@@ -80,13 +106,13 @@ export function wfc(n: number, rng: Rng): number[] {
         }
       }
       if (best < 0) break;
-      const opts = bits(dom[best]);
+      const choices = bits(dom[best]);
       let total = 0;
-      for (const t of opts) total += TILES[t].weight;
+      for (const t of choices) total += weight(t);
       let r = rng.next() * total;
-      let pick = opts[opts.length - 1];
-      for (const t of opts) {
-        r -= TILES[t].weight;
+      let pick = choices[choices.length - 1];
+      for (const t of choices) {
+        r -= weight(t);
         if (r <= 0) {
           pick = t;
           break;

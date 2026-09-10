@@ -1,0 +1,105 @@
+{
+  "id": "crossing",
+  "leg": { "startX": 700, "finishX": 119600 },
+  "zones": [
+    { "x": 0, "id": "shelf", "shelf": "0x17546f", "deep": "0x0b2a3d", "tempC": 12 },
+    { "x": 30000, "id": "open-blue", "shelf": "0x10405a", "deep": "0x08192a", "tempC": 11 },
+    { "x": 62000, "id": "lane", "shelf": "0x173f4c", "deep": "0x0a1a22", "tempC": 13 },
+    { "x": 88000, "id": "seamount", "shelf": "0x134a5e", "deep": "0x09182a", "tempC": 16 },
+    { "x": 110000, "id": "warm", "shelf": "0x1c6272", "deep": "0x102438", "tempC": 25 }
+  ],
+  "spawns": [
+    {
+      "kind": "krill",
+      "mode": "place",
+      "items": [{ "x": 2400, "y": 1450, "r": 420 }]
+    },
+    {
+      "kind": "krill",
+      "mode": "scatter",
+      "from": 6200,
+      "to": 118000,
+      "step": [4200, 8600],
+      "skipTiles": ["seamount", "shelf"],
+      "yBand": [1250, 2600],
+      "floorGap": 420,
+      "minY": 900,
+      "r": [300, 560]
+    },
+    {
+      "kind": "school",
+      "mode": "scatter",
+      "from": 3000,
+      "to": 118000,
+      "step": [5000, 9000],
+      "count": 34,
+      "yTop": 300,
+      "floorGap": 500,
+      "yClamp": [200, 3200],
+      "spread": [260, 160],
+      "vel": [40, 18]
+    },
+    {
+      "kind": "whale",
+      "mode": "place",
+      "vx": [-30, 10],
+      "size": [0.9, 1.06],
+      "age": [0.85, 1],
+      "items": [{ "x": 3400, "y": 1000 }]
+    },
+    {
+      "kind": "whale",
+      "mode": "scatter",
+      "from": 11000,
+      "to": 116000,
+      "step": [9000, 15000],
+      "y": [500, 1700],
+      "age": [0.8, 1],
+      "vx": [-30, 10],
+      "size": [0.9, 1.06],
+      "calf": {
+        "chance": 0.3,
+        "dx": [120, 260],
+        "dy": [-120, 120],
+        "age": [0.2, 0.5]
+      }
+    },
+    {
+      "kind": "ship",
+      "mode": "scatter",
+      "from": 60000,
+      "to": 92000,
+      "step": [7000, 12000],
+      "v": [-70, 70],
+      "len": [900, 1900]
+    },
+    {
+      "kind": "snow",
+      "count": 380,
+      "area": [4000, 4000],
+      "s": [0.4, 1.6],
+      "d": [0.35, 1]
+    },
+    {
+      "kind": "coral",
+      "mode": "scatter",
+      "from": 2000,
+      "to": 118000,
+      "onTiles": ["shelf", "seamount"],
+      "maxFloor": 1150,
+      "patchCount": [2, 6],
+      "spacing": [60, 200],
+      "patchDropFloor": 1600,
+      "kinds": 5,
+      "scale": [0.75, 1.7],
+      "gap": [1600, 4800],
+      "skipGap": [400, 1100],
+      "reef": {
+        "chance": 0.6,
+        "riseFromFloor": [70, 150],
+        "schoolRise": [120, 340],
+        "schoolCount": [26, 40]
+      }
+    }
+  ]
+}

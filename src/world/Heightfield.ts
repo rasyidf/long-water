@@ -3,10 +3,11 @@
  * plus the sonar-lit accumulator that renderers read. Built once at start.
  */
 import { CELL, COL, NCELL, NCOL } from "../config/constants";
-import { LEG } from "../config/route";
+import { activeLeg } from "../config/route";
 import { TILES } from "../config/tiles";
 import { clamp, lerp } from "../core/math";
 import { fbm, type Rng } from "../core/rng";
+import { getLevel } from "./level/active";
 import { wfc } from "./Wfc";
 
 export class Heightfield {
@@ -16,7 +17,12 @@ export class Heightfield {
   readonly floorLit = new Float32Array(NCOL);
 
   constructor(rng: Rng) {
-    this.tiles = wfc(NCELL, rng);
+    const { pinnedStart, pinnedEnd, tileWeights } = getLevel().terrain;
+    this.tiles = wfc(NCELL, rng, {
+      weights: tileWeights,
+      pinStart: pinnedStart,
+      pinEnd: pinnedEnd,
+    });
     this.buildFloor(rng);
   }
 
@@ -56,7 +62,7 @@ export class Heightfield {
     for (let i = 0; i < NCOL; i++)
       this.floorY[i] = Math.max(200, this.floorY[i]);
 
-    this.carveTrenches(rng);
+    if (getLevel().terrain.trenches) this.carveTrenches(rng);
   }
 
   /** Punch a few narrow, near-vertical slots through canyon/trench cells. Run
@@ -93,6 +99,6 @@ export class Heightfield {
 
   /** past the goal line */
   get finishX(): number {
-    return LEG.finishX;
+    return activeLeg().finishX;
   }
 }
