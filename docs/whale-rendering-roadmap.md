@@ -121,8 +121,16 @@ Ordered. Items 1–2 are the ones that could change what shipped.
 ### N5. Still open from the first pass
 - #3 fill-object reuse, #15 layer alpha (needs an interface change), #18 true
   LOD hysteresis (needs per-whale state), #22 blue-whale colouring (wants a
-  side-by-side review), #26 Mesh + shader, #27 pure geometry + unit tests (no
-  test runner installed — would need vitest), #28 done.
+  side-by-side review), #26 Mesh + shader, #28 done.
+- #27 **partly done** (2026-09-10, `feat/procedural-views`): the already-pure
+  shape math (`profile` / `topHalf` / `botHalf` / `mouthPsi` / `latK` /
+  `cosVisible` / `hash01`) plus a new allocation-free `rollBasis` are lifted to
+  [src/render/whale/geometry.ts](../src/render/whale/geometry.ts) with vitest
+  coverage. The outline/fin *assembly* is still entangled with Pixi + the camera
+  in `ProceduralWhaleView` — a `spine → outline points + fin anchors` pure
+  function is the remaining step. Also landed: a shared
+  [CreatureView](../src/render/CreatureView.ts) seam and a matching
+  `ProceduralSquidView` (`SquidRenderer` is now a thin cull-and-delegate System).
 
 ---
 
@@ -367,7 +375,8 @@ Ordered. Items 1–2 are the ones that could change what shipped.
 - **Estimate:** Significant refactor; candidate for dedicated effort.
 
 ### 27. Extract geometry from Pixi first
-- **Status:** ☐ Not started
+- **Status:** ◑ Partly done — pure shape math + `rollBasis` extracted to
+  `render/whale/geometry.ts` with tests; outline/fin assembly still in the view.
 - **Priority:** Enable testing and reduce renderer coupling
 - **Description:** Geometry calculation is entangled with Pixi rendering. Pull it out into pure functions.
 - **Proposal:** Pure function: `spine + options → outline points + fin anchors (in body space)`.
