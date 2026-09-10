@@ -7,6 +7,8 @@ export default defineConfig({
     open: true,
   },
   build: {
+    // procgen.ts uses top-level await (Pixi `app.init`); es2020 can't emit it
+    target: "es2022",
     rollupOptions: {
       // paths are resolved from the project root
       input: {
