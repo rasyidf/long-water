@@ -29,10 +29,10 @@ export class Hud implements System {
 
   render(ctx: GameContext): void {
     const { whale, pod } = ctx;
-    this.el.breathFill.style.transform = `scaleX(${whale.breath / 100})`;
-    this.el.energyFill.style.transform = `scaleX(${whale.energy / 100})`;
-    this.el.breathNum.textContent = String(Math.round(whale.breath));
-    this.el.energyNum.textContent = String(Math.round(whale.energy));
+    this.el.breathFill.style.width = `${Math.max(0, Math.min(100, whale.breath))}%`;
+    this.el.energyFill.style.width = `${Math.max(0, Math.min(100, whale.energy))}%`;
+    this.el.breathNum.textContent = `${Math.round(whale.breath)}%`;
+    this.el.energyNum.textContent = `${Math.round(whale.energy)}%`;
     this.el.breathFill.classList.toggle("low", whale.breath < 30);
 
     const z = zoneAt(whale.x);

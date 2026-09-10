@@ -11,8 +11,8 @@ export const en: Record<string, string> = {
 
   // instrument panel
   "hud.leg": "{done} of {total} km",
-  "hud.draft.alone": "swimming alone",
-  "hud.draft.drafting": "drafting, {pct}% less effort",
+  "hud.draft.alone": "Swimming alone",
+  "hud.draft.drafting": "Drafting, {pct}% less effort",
 
   // zones (keyed by Zone.id)
   "zone.shelf": "Continental shelf",

@@ -18,17 +18,28 @@
     <div class="hud goal" id="goal">South to warm water. The krill is below the light.</div>
 
     <div class="hud instruments">
-      <div class="meter">
-        <div class="label"><span>Breath</span><span id="breathNum">100</span></div>
-        <div class="track"><div class="fill" id="breathFill"></div></div>
+      <div class="badge" aria-hidden="true">
+        <svg viewBox="0 0 64 64" class="whale-mark">
+          <path
+            d="M4 33C6 24 16 19 28 20C42 21 50 16 58 9C56 17 55 24 58 30C54 30 49 31 46 34C46 39 40 44 29 45C16 46 4 42 4 33Z"
+          />
+          <path d="M23 39C23 46 27 51 34 53C31 47 29 42 29 37Z" class="fin" />
+        </svg>
       </div>
-      <div class="meter">
-        <div class="label"><span>Reserves</span><span id="energyNum">100</span></div>
-        <div class="track"><div class="fill" id="energyFill"></div></div>
-      </div>
-      <div class="pod">
-        <span>Pod</span><span class="dots" id="podDots"></span>
-        <span class="draft" id="draft"></span>
+      <div class="gauges">
+        <div class="meter">
+          <div class="label"><span>Breath</span><span class="pct" id="breathNum">100%</span></div>
+          <div class="track"><div class="fill" id="breathFill"></div></div>
+        </div>
+        <div class="meter">
+          <div class="label"><span>Reserves</span><span class="pct" id="energyNum">100%</span></div>
+          <div class="track"><div class="fill" id="energyFill"></div></div>
+        </div>
+        <div class="pod">
+          <span class="pod-mark"></span><span class="pod-label">Pod</span>
+          <span class="dots" id="podDots"></span>
+          <span class="draft" id="draft"></span>
+        </div>
       </div>
     </div>
 
