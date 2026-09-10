@@ -4,10 +4,14 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "npm run dev",
-    "build": "npm run lint && tsc && vite build",
+    "start": "bun run dev",
+    "build": "bun run lint && tsc && bun run check && vite build",
     "lint": "eslint .",
-    "dev": "vite"
+    "check": "svelte-check --tsconfig ./tsconfig.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "dev": "vite",
+    "deploy": "bun run build && bunx wrangler@latest pages deploy dist --project-name=long-water"
   },
   "dependencies": {
     "@esotericsoftware/spine-pixi-v8": "^4.2.0",
@@ -15,13 +19,21 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.21.0",
+    "@sveltejs/vite-plugin-svelte": "^5",
+    "@types/node": "^22.20.2",
     "eslint": "^9.21.0",
     "eslint-config-prettier": "^10.1.2",
     "eslint-plugin-prettier": "^5.2.6",
+    "eslint-plugin-svelte": "^3.23.0",
     "playwright": "1.48.0",
     "prettier": "^3.5.3",
+    "prettier-plugin-svelte": "^4.1.1",
+    "svelte": "^5.57.0",
+    "svelte-check": "^4.7.6",
+    "svelte-eslint-parser": "^1.8.1",
     "typescript": "~5.7.3",
     "typescript-eslint": "^8.25.0",
-    "vite": "^6.2.0"
+    "vite": "^6.2.0",
+    "vitest": "^5.0.0"
   }
 }
