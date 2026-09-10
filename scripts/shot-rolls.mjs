@@ -1,8 +1,8 @@
 /**
- * Screenshot the ProcGen Designer whale at a list of roll angles.
+ * Screenshot the whale designer at a list of roll angles.
  *
  *   node scripts/shot-rolls.mjs <port> <out-prefix> <rolls,csv> [zoom] [extra-json]
- *   node scripts/shot-rolls.mjs 8082 /tmp/w 0,90,180 2.2 '{"juv":0.8}'
+ *   node scripts/shot-rolls.mjs 8080 /tmp/w 0,90,180 2.2 '{"juv":0.8}'
  */
 import { chromium } from "playwright";
 
@@ -24,14 +24,20 @@ page.on("pageerror", (e) => console.error("PAGEERROR", e.message));
 page.on("console", (m) => {
   if (m.type() === "error") console.error("CONSOLE", m.text());
 });
-await page.goto(`http://localhost:${PORT}/procgen.html`);
-await page.waitForFunction(() => !!window.procgen, null, { timeout: 15000 });
+await page.goto(`http://localhost:${PORT}/tools.html#whale`);
+await page.waitForFunction(() => !!window.__whaleDesigner, null, {
+  timeout: 15000,
+});
 await page.addStyleTag({
-  content: "#controls,#layers,#code,.hint{display:none !important}",
+  content: "nav,.panel,.code{display:none !important}",
 });
 
 const set = (patch) =>
-  page.evaluate((p) => window.procgen.set(p), { zoom, bend: 0, ...patch });
+  page.evaluate((p) => window.__whaleDesigner.set(p), {
+    zoom,
+    bend: 0,
+    ...patch,
+  });
 
 for (const r of rolls) {
   await set({ rollDeg: r, swim: false, ...extra });

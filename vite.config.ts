@@ -1,7 +1,18 @@
+/// <reference types="vitest/config" />
+import { svelte } from "@sveltejs/vite-plugin-svelte";
 import { defineConfig } from "vite";
+
+import { editorSave } from "./vite-plugin-editor-save";
 
 // https://vite.dev/config/
 export default defineConfig({
+  plugins: [svelte(), editorSave()],
+  // Pure-logic tests only (world-gen, scoring, level validation). Anything that
+  // touches Pixi or the DOM is out of scope — see docs/roadmap/engineering-foundations.md §1.
+  test: {
+    include: ["src/**/*.{test,spec}.ts"],
+    environment: "node",
+  },
   server: {
     port: 8080,
     open: true,
@@ -14,7 +25,8 @@ export default defineConfig({
       input: {
         main: "index.html", // the game
         preview: "preview.html", // a static object gallery for renderer tweaks
-        procgen: "procgen.html", // live single-entity procgen designer
+        tools: "tools.html", // procedural-generation viewer (Svelte)
+        editor: "editor.html", // level editor (Svelte)
       },
     },
   },

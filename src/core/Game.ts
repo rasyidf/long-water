@@ -30,6 +30,7 @@ import { EventBus } from "./EventBus";
 import type { GameContext } from "./GameContext";
 import { Input } from "./Input";
 import { Layers } from "./Layers";
+import { renderSystems, previewSimSystems } from "./renderStack";
 import { Rng } from "./rng";
 import type { System } from "./System";
 
@@ -47,16 +48,6 @@ import { SquidSystem } from "../systems/SquidSystem";
 import { SongSystem } from "../systems/SongSystem";
 import { VitalsSystem } from "../systems/VitalsSystem";
 import { WhaleSystem } from "../systems/WhaleSystem";
-
-import { BackgroundRenderer } from "../render/BackgroundRenderer";
-import { CoralRenderer } from "../render/CoralRenderer";
-import { FaunaRenderer } from "../render/FaunaRenderer";
-import { KrillRenderer } from "../render/fauna/KrillRenderer";
-import { GlowRenderer } from "../render/GlowRenderer";
-import { ShipRenderer } from "../render/ShipRenderer";
-import { SquidRenderer } from "../render/SquidRenderer";
-import { TerrainRenderer } from "../render/TerrainRenderer";
-import { WhaleRenderer } from "../render/WhaleRenderer";
 
 import { Cards } from "../hud/Cards";
 import { DepthRuler } from "../hud/DepthRuler";
@@ -175,21 +166,9 @@ export class Game {
     if (preview && framing) {
       // gallery: only the animate-in-place systems + every renderer
       this.systems = [
-        new WhaleSystem(false),
-        new SongSystem(),
-        new KrillSystem(),
-        new SchoolSystem(),
-        new ParticleSystem(),
+        ...previewSimSystems(),
         new PreviewDirector(framing),
-
-        new BackgroundRenderer(),
-        new TerrainRenderer(),
-        new CoralRenderer(),
-        new FaunaRenderer(),
-        new KrillRenderer(),
-        new WhaleRenderer(),
-        new ShipRenderer(),
-        new GlowRenderer(),
+        ...renderSystems(),
       ];
       for (const s of this.systems) s.init?.(this.ctx);
       this.clock.markStarted();
@@ -214,15 +193,7 @@ export class Game {
       new ScoreSystem(),
       new CameraSystem(),
 
-      new BackgroundRenderer(),
-      new TerrainRenderer(),
-      new CoralRenderer(),
-      new FaunaRenderer(),
-      new KrillRenderer(),
-      new WhaleRenderer(),
-      new SquidRenderer(),
-      new ShipRenderer(),
-      new GlowRenderer(),
+      ...renderSystems(),
 
       new Hud(),
       new ScoreHud(),

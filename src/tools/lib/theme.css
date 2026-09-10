@@ -1,0 +1,69 @@
+/* Shared chrome for the dev tools (tools.html, editor.html). Mirrors the dark
+   panel look the old procgen.html had inline. */
+:root {
+  color-scheme: dark;
+  --panel: rgba(6, 12, 22, 0.86);
+  --panel-solid: #0a1420;
+  --line: rgba(120, 160, 190, 0.18);
+  --ink: #d7e6ee;
+  --dim: #8fa6b4;
+  --accent: #6ec7dc;
+  --warn: #e6b25c;
+  --bad: #e06a6a;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #02040a;
+  font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color: var(--ink);
+}
+
+#app {
+  position: fixed;
+  inset: 0;
+  display: flex;
+}
+
+button,
+select,
+input {
+  font: inherit;
+  color: var(--ink);
+}
+
+button {
+  background: rgba(110, 199, 220, 0.12);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 5px 9px;
+  cursor: pointer;
+}
+button:hover {
+  background: rgba(110, 199, 220, 0.22);
+}
+button.on {
+  background: var(--accent);
+  color: #04121a;
+  border-color: var(--accent);
+}
+button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+select,
+input[type="text"],
+input[type="number"] {
+  background: rgba(4, 10, 18, 0.6);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 3px 6px;
+}
+
+input[type="range"] {
+  accent-color: var(--accent);
+}
