@@ -21,6 +21,13 @@ export interface PodWhale {
   stress: number;
   /** 0..1 appetite; a hungry follower diverts to nearby krill */
   hunger: number;
+  /** lungs, 0..100 — depletes at depth, refills at the surface (same as the
+   * player). A wild whale climbs to breathe when this runs low. */
+  breath: number;
+  /** true while a wild/lost whale is on a breath run up to the surface */
+  surfacing: boolean;
+  /** the depth it meanders around between breaths */
+  cruiseY: number;
   nextSong: number;
   ph: number;
   size: number;
@@ -60,6 +67,9 @@ export interface PodWhaleInit {
   slot?: number;
   stress?: number;
   hunger?: number;
+  breath?: number;
+  surfacing?: boolean;
+  cruiseY?: number;
   nextSong?: number;
   ph?: number;
   size?: number;
@@ -80,6 +90,9 @@ export function makePodWhale(o: PodWhaleInit): PodWhale {
     slot: o.slot ?? -1,
     stress: o.stress ?? 0,
     hunger: o.hunger ?? 0,
+    breath: o.breath ?? 100,
+    surfacing: o.surfacing ?? false,
+    cruiseY: o.cruiseY ?? o.y,
     nextSong: o.nextSong ?? 0,
     ph: o.ph ?? 0,
     size,

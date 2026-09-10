@@ -199,18 +199,18 @@ export class BackgroundRenderer implements System {
         const drift =
           Math.sin(clock.t * (0.14 + r2 * 0.22) + i * 1.7) * (30 + r3 * 55);
         const x0 = cam.sx(wx) + drift * sc;
-        const topW = (10 + r * 30) * sc;
-        const len = (1100 + r3 * 1000) * sc;
+        const topW = (22 + r * 46) * sc;
+        const len = (1200 + r3 * 1100) * sc;
         const lean = SUN_LEAN * len * (0.7 + r2 * 0.6);
-        const peak = (0.028 + r * 0.05) * shaftK;
+        const peak = (0.03 + r * 0.055) * shaftK;
         const SEG = 6;
         for (let s = 0; s < SEG; s++) {
           const ta = s / SEG;
           const tb = (s + 1) / SEG;
           const xa = x0 + lean * ta;
           const xb = x0 + lean * tb;
-          const wa = topW * (1 + ta * 2.6);
-          const wb = topW * (1 + tb * 2.6);
+          const wa = topW * (1 + ta * 1.8);
+          const wb = topW * (1 + tb * 1.8);
           const ya = y0 + len * ta;
           const yb = y0 + len * tb;
           g.moveTo(xa - wa, ya);

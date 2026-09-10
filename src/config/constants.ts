@@ -39,7 +39,12 @@ export const C = {
   wildSkin: 0x6ba7b6,
   wildBelly: 0xbcd8d6,
   rock: 0x02050a,
+  /** seabed body: a lit shoulder near the crest fading to `seabedDeep` below */
+  seabed: 0x4a6d74,
+  seabedDeep: 0x0a2029,
   rockLit: 0x274a5c,
+  /** bright sunlit edge along the shelf crest / reef rim */
+  reefRim: 0x82d6ca,
   hull: 0x151f27,
   foam: 0xcfe6e2,
   alarm: 0xd9603f,

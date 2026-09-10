@@ -11,7 +11,7 @@ import type { PodState } from "./Pod";
 import { saveBody, type WhaleBodySave } from "./WhaleBody";
 
 const KEY = "long-water:save";
-const VERSION = 3; // bumped: whale movement state moved onto WhaleBody
+const VERSION = 5; // bumped: pod whales persist breath + surfacing state
 
 interface SaveData {
   v: number;
@@ -44,6 +44,8 @@ interface SaveData {
     slot: number;
     stress: number;
     hunger: number;
+    breath: number;
+    surfacing: boolean;
     nextSong: number;
   }>;
   krill: Array<{ x: number; baseY: number; amount: number }>;
@@ -93,6 +95,8 @@ export function save(ctx: GameContext): boolean {
       slot: w.slot,
       stress: w.stress,
       hunger: w.hunger,
+      breath: w.breath,
+      surfacing: w.surfacing,
       nextSong: w.nextSong,
     })),
     krill: ctx.krill.swarms.map((s) => ({
@@ -100,6 +104,8 @@ export function save(ctx: GameContext): boolean {
       baseY: s.baseY,
       amount: s.amount,
     })),
+    // `species` is spawn-derived (seeded rng), not serialized — it rebuilds
+    // with the world before any load runs
     schools: ctx.schools.schools.map((sc) => ({
       fish: sc.fish.map((f) => ({ x: f.x, y: f.y, vx: f.vx, vy: f.vy })),
     })),

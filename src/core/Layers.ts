@@ -3,7 +3,13 @@
  * layer and never touch another's. Draw order is the array below — insert a new
  * layer name in the right place and add a renderer for it.
  */
-import { BlurFilter, Container, Graphics, Sprite } from "pixi.js";
+import {
+  BlurFilter,
+  Container,
+  Graphics,
+  ParticleContainer,
+  Sprite,
+} from "pixi.js";
 
 export const LAYER_ORDER = [
   "sky",
@@ -42,7 +48,11 @@ export class Layers {
   readonly terrain = new Graphics();
   readonly coral = new Graphics();
   readonly fish = new Graphics();
-  readonly krill = new Graphics();
+  /** krill parts as GPU-instanced quads — one `Particle` per part, owned and
+   * positioned each frame by `KrillRenderer` */
+  readonly krill = new ParticleContainer({
+    dynamicProperties: { position: true, color: true },
+  });
   readonly whales = new Graphics();
   readonly ships = new Graphics();
   readonly caustics = new Graphics();

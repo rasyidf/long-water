@@ -5,8 +5,10 @@
  * play-through. Not part of the game — only `Game` in preview mode calls this.
  */
 import { COL, NCOL } from "../config/constants";
+import { SI } from "../config/species";
 import { clamp01 } from "../core/math";
 import type { Rng } from "../core/rng";
+import { makeSchool } from "./makeSchool";
 import type {
   Coral,
   CoralStore,
@@ -39,9 +41,15 @@ const FRAMING: PreviewFraming = { x: 1650, y: 760, scale: 0.4 };
 /** the sculpted seabed: a sunlit shelf on the left that ramps to a deep plain,
  *  so both shallow (coral) and deep (krill) life have somewhere to sit */
 function floorProfile(x: number): number {
-  const shelf = 700 + Math.sin(x * 0.004) * 55 + Math.sin(x * 0.015 + 1) * 16;
-  const deep = 1680 + Math.sin(x * 0.006) * 35;
-  return shelf + (deep - shelf) * clamp01((x - 1550) / 550);
+  const shelf = 660 + Math.sin(x * 0.004) * 44 + Math.sin(x * 0.015 + 1) * 14;
+  // a steep, rubble-strewn shelf break, then a deep slope
+  const t = clamp01((x - 1560) / 230);
+  const deep = 1560 + Math.sin(x * 0.006) * 30;
+  let y = shelf + (deep - shelf) * (t * t);
+  // a narrow trench slot that plunges off the bottom of the frame
+  const d = Math.abs(x - 2500);
+  if (d < 55) y = Math.max(y, 2400 - (55 - d) * 22);
+  return y;
 }
 
 function makeSwarm(rng: Rng, x: number, y: number, r: number): Swarm {
@@ -125,10 +133,23 @@ export function buildPreviewScene(
     makeSchool(rng, 1230, reefHomeY - 160, 28, {
       homeX: 1230,
       homeY: reefHomeY,
+      species: SI["reef-tang"],
     }),
   );
-  // an open-water school, out of the whale's range — roaming, spread out
-  schools.schools.push(makeSchool(rng, 2400, 520, 34));
+  // open-water schools, out of the whale's range — one per draw strategy so the
+  // gallery shows the whole species library at once
+  schools.schools.push(
+    makeSchool(rng, 2300, 470, 34, { species: SI["blue-dart"] }),
+  );
+  schools.schools.push(
+    makeSchool(rng, 2600, 560, 12, { species: SI["eagle-ray"] }),
+  );
+  schools.schools.push(
+    makeSchool(rng, 2450, 700, 14, { species: SI["ribbon-eel"] }),
+  );
+  schools.schools.push(
+    makeSchool(rng, 2750, 380, 10, { species: SI["moon-jelly"] }),
+  );
 
   // krill swarm, below the light line over the deep plain. KrillSystem swings
   // it ±430 (diel migration) so a screenshot catches it anywhere in that band.
@@ -187,32 +208,4 @@ export function buildPreviewScene(
     });
 
   return FRAMING;
-}
-
-function makeSchool(
-  rng: Rng,
-  x: number,
-  y: number,
-  n: number,
-  over: { homeX?: number; homeY?: number } = {},
-) {
-  const fish = [];
-  for (let i = 0; i < n; i++)
-    fish.push({
-      x: x + rng.range(-190, 190),
-      y: y + rng.range(-120, 120),
-      vx: rng.range(-30, 30),
-      vy: rng.range(-14, 14),
-    });
-  return {
-    x,
-    y,
-    ax: x,
-    ay: y,
-    fish,
-    lit: 0,
-    ph: rng.next() * 9,
-    shelter: 0,
-    ...over,
-  };
 }

@@ -15,6 +15,7 @@ import type {
 import type { ParticleStore, ShipStore } from "../state/Hazards";
 import { makePodWhale, type Pod } from "../state/Pod";
 import { clamp } from "../core/math";
+import { makeSchool } from "./makeSchool";
 import type { Heightfield } from "./Heightfield";
 
 function makeSwarm(rng: Rng, x: number, y: number, r: number): Swarm {
@@ -72,24 +73,9 @@ export function spawnWorld(
   // fish schools (boids) — not food
   for (let x = 3000; x < WORLD_W - 2000; x += rng.range(5000, 9000)) {
     const y = clamp(rng.range(300, world.floorAt(x) - 500), 200, 3200);
-    const fish = [];
-    for (let i = 0; i < 34; i++)
-      fish.push({
-        x: x + rng.range(-260, 260),
-        y: y + rng.range(-160, 160),
-        vx: rng.range(-40, 40),
-        vy: rng.range(-18, 18),
-      });
-    schools.schools.push({
-      x,
-      y,
-      ax: x,
-      ay: y,
-      fish,
-      lit: 0,
-      ph: rng.next() * 9,
-      shelter: 0,
-    });
+    schools.schools.push(
+      makeSchool(rng, x, y, 34, { spread: [260, 160], vel: [40, 18] }),
+    );
   }
 
   // pod — one near the start, then scattered down the route. Adults travel
@@ -156,27 +142,10 @@ export function spawnWorld(
         const mid = (x + cx) / 2;
         const homeY = world.floorAt(mid) - rng.range(70, 150);
         const sy = homeY - rng.range(120, 340);
-        const fish = [];
         const n = 26 + ((rng.next() * 14) | 0);
-        for (let i = 0; i < n; i++)
-          fish.push({
-            x: mid + rng.range(-190, 190),
-            y: sy + rng.range(-120, 120),
-            vx: rng.range(-30, 30),
-            vy: rng.range(-14, 14),
-          });
-        schools.schools.push({
-          x: mid,
-          y: sy,
-          ax: mid,
-          ay: sy,
-          fish,
-          lit: 0,
-          ph: rng.next() * 9,
-          homeX: mid,
-          homeY,
-          shelter: 0,
-        });
+        schools.schools.push(
+          makeSchool(rng, mid, sy, n, { homeX: mid, homeY }),
+        );
       }
       x = cx + rng.range(1600, 4800);
     } else {

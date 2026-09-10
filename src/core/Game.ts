@@ -44,6 +44,7 @@ import { WhaleSystem } from "../systems/WhaleSystem";
 import { BackgroundRenderer } from "../render/BackgroundRenderer";
 import { CoralRenderer } from "../render/CoralRenderer";
 import { FaunaRenderer } from "../render/FaunaRenderer";
+import { KrillRenderer } from "../render/fauna/KrillRenderer";
 import { GlowRenderer } from "../render/GlowRenderer";
 import { ShipRenderer } from "../render/ShipRenderer";
 import { TerrainRenderer } from "../render/TerrainRenderer";
@@ -142,6 +143,7 @@ export class Game {
         new TerrainRenderer(),
         new CoralRenderer(),
         new FaunaRenderer(),
+        new KrillRenderer(),
         new WhaleRenderer(),
         new ShipRenderer(),
         new GlowRenderer(),
@@ -171,6 +173,7 @@ export class Game {
       new TerrainRenderer(),
       new CoralRenderer(),
       new FaunaRenderer(),
+      new KrillRenderer(),
       new WhaleRenderer(),
       new ShipRenderer(),
       new GlowRenderer(),

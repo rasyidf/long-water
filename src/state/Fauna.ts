@@ -45,6 +45,9 @@ export interface School {
   homeY?: number;
   /** 0..1 how deeply the school has taken cover right now */
   shelter: number;
+  /** index into `SPECIES` (`config/species.ts`); assigned at spawn from the
+   *  seeded rng, so it rebuilds deterministically and is never serialized. */
+  species: number;
 }
 
 /** A static coral growth anchored to the seabed on the shallow shelf. */

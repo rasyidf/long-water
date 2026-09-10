@@ -122,6 +122,10 @@ An opening sing fires automatically ~1 s into the run to teach the mechanic.
 
 State machine per wild whale: **wild → answered → following → lost**.
 
+- **wild / answered / lost:** live like real whales — meander around the depth
+  they spawned at, burn `breath` on the player's curve while submerged, then
+  climb to the surface to blow (a soft spout) when their lungs run low before
+  sinking back down. `answered` layers a homing pull toward the player on top.
 - **answered:** closes some distance on its own; reverts to wild if the window
   expires before you reach it.
 - **following:** steers to a slot in the leader's wake (never traces the path).
@@ -321,7 +325,7 @@ HUD/FX: `hint:show {text,secs}`, `fx:shake`, `fx:bubbles`.
 | `VitalsSystem` | ✓ | Breath, reserves, drowning, drafting discount, and the two run-ending checks (`energy ≤ 0`, `x ≥ world.finishX`). |
 | `FeedingSystem` | ✓ | Lunge-feeding: while surging, converts nearby krill into reserves. |
 | `SongSystem` | ✓ | The whole sonar mechanic: emit rings, propagate them, light what they sweep, schedule pod replies, decay the lit-seabed accumulator. |
-| `PodSystem` | ✓ | Pod *social* state machine only: answered→following recruit, answered/lost timeouts, a follower's periodic call. Steering lives in `systems/whale/PodBrain.ts` (wake anchor + leader-velocity match + catch-up + separation + seabed/surface springs + ship-dive + hunger/krill foraging + stress break-off). |
+| `PodSystem` | ✓ | Pod *social* state machine only: answered→following recruit, answered/lost timeouts, a follower's periodic call. Steering lives in `systems/whale/PodBrain.ts` — followers: wake anchor + leader-velocity match + catch-up + separation + seabed/surface springs + ship-dive + hunger/krill foraging + stress break-off; wild/answered/lost: cruise-depth meander + breath cycle (climb to blow when air runs low) + answered homing. |
 | `KrillSystem` | ✓ | Swarm rotation, diel vertical migration, balling-up under threat. Only steps swarms near the camera. |
 | `SchoolSystem` | ✓ | Fish boids (cohesion/alignment/separation + whale avoidance). Cosmetic — not food. Reef schools (with a coral `home`) take cover in the coral as the whale nears and spill out again after. |
 | `ShipSystem` | ✓ | Advances ships along the lane. Noise footprint is read by `PodBrain`. |
@@ -398,6 +402,15 @@ length 280 (28 m). Light: `DARK_START` 900 (90 m) → `DARK_FULL` 1800 (180 m).
   the world container, not per-layer.
 - **Camera** (`core/Camera.ts`) owns the world↔screen transform (`sx`/`sy`),
   lazy-follows with a velocity-based lead, and eases zoom out as speed rises.
+- **Fish** (`render/FaunaRenderer.ts`): each school carries a `species` index
+  into `config/species.ts`; the renderer resolves the `SpeciesProfile` (colour,
+  size, `smoothstep` LOD ramp) and dispatches one fish body to
+  `FISH_STRATEGIES[profile.draw]` (`render/fauna/strategies.ts`:
+  `dart`, `forkedTail`, `eelRibbon`, `rayGlide`, `jellyBell`), then lays down
+  one batched fill per school. `SchoolSystem` (boids) is species-agnostic.
+- **Krill** (`render/fauna/KrillRenderer.ts`): the `krill` layer is a Pixi
+  `ParticleContainer`; one `Particle` per part, allocated once in `init`,
+  repositioned/faded each frame.
 - **Whale pose** (`core/SpineChain.ts`): `SPINE_JOINTS` = 16. `chaseChain`
   constrains the rigid backbone to fixed segment lengths with a bending-
   relaxation pass. `applyUndulation` writes a *display* copy with the swimming
@@ -489,6 +502,10 @@ No existing system imports yours, so nothing else changes.
 
 **Add a terrain biome:** add a tile to `config/tiles.ts` and list its legal
 neighbours in `RULES`. `Wfc`/`Heightfield` consume it unchanged.
+
+**Add a fish species:** add a `SpeciesProfile` to `config/species.ts` and, if it
+needs a new body shape, a `FishStrategy` to `render/fauna/strategies.ts`.
+`FaunaRenderer`, `SchoolSystem` and `Snapshot` consume it unchanged.
 
 **Add a card:** write another builder in `hud/cardContent.ts` and call
 `cards.show(myCard())` from whatever triggers it.

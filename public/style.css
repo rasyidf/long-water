@@ -71,67 +71,148 @@ body {
 }
 
 .instruments {
-  left: 30px;
-  bottom: 28px;
-  width: 248px;
+  left: 26px;
+  bottom: 26px;
+  width: 320px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 20px 16px 16px;
+  border-radius: 18px;
+  background: linear-gradient(
+    180deg,
+    rgba(12, 26, 40, 0.72),
+    rgba(6, 15, 26, 0.66)
+  );
+  border: 1px solid rgba(159, 232, 213, 0.12);
+  box-shadow: 0 12px 36px rgba(2, 6, 12, 0.42);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
+
+.instruments .badge {
+  flex: none;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(
+    circle at 34% 30%,
+    rgba(98, 199, 187, 0.28),
+    rgba(8, 20, 34, 0.6)
+  );
+  border: 1px solid rgba(159, 232, 213, 0.22);
+}
+.instruments .whale-mark {
+  width: 34px;
+  height: 34px;
+}
+.instruments .whale-mark path {
+  fill: var(--song);
+}
+.instruments .whale-mark .fin {
+  fill: var(--surface);
+  opacity: 0.85;
+}
+
+.gauges {
+  flex: 1;
+  min-width: 0;
+}
+
 .meter {
-  margin-bottom: 13px;
+  margin-bottom: 12px;
 }
 .meter .label {
   display: flex;
   justify-content: space-between;
-  font-size: 11px;
-  letter-spacing: 0.05em;
-  opacity: 0.6;
-  margin-bottom: 5px;
+  align-items: baseline;
+  font-size: 12px;
+  letter-spacing: 0.03em;
+  margin-bottom: 6px;
   font-variant-numeric: tabular-nums;
 }
+.meter .label span:first-child {
+  color: var(--bone);
+  opacity: 0.92;
+  font-weight: 500;
+}
+.meter .label .pct {
+  font-size: 11px;
+  opacity: 0.55;
+}
 .meter .track {
-  height: 3px;
-  background: rgba(222, 214, 198, 0.15);
+  height: 7px;
+  border-radius: 4px;
+  background: rgba(222, 214, 198, 0.14);
+  overflow: hidden;
 }
 .meter .fill {
   height: 100%;
   width: 100%;
-  transform-origin: left center;
+  border-radius: 4px;
   background: var(--bone);
+  transition: width 0.25s ease, background 0.3s linear;
 }
 #breathFill {
-  background: var(--surface);
-  transition: background 0.3s linear;
+  background: linear-gradient(90deg, var(--surface), var(--song));
 }
 #energyFill {
-  background: var(--krill);
+  background: linear-gradient(90deg, #d99a3f, #f2c96b);
 }
 #breathFill.low {
-  background: var(--alarm);
+  background: linear-gradient(90deg, var(--alarm), #f0895f);
 }
 
 .pod {
   display: flex;
-  align-items: baseline;
-  gap: 9px;
-  margin-top: 17px;
+  align-items: center;
+  gap: 7px;
+  margin-top: 14px;
   font-size: 11px;
-  letter-spacing: 0.05em;
-  opacity: 0.62;
+  letter-spacing: 0.04em;
+  opacity: 0.7;
+}
+.pod .pod-mark {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  border: 1.5px solid var(--song);
+  position: relative;
+}
+.pod .pod-mark::after {
+  content: "";
+  position: absolute;
+  inset: 3px;
+  border-radius: 50%;
+  background: var(--song);
+}
+.pod .pod-label {
+  color: var(--bone);
+  opacity: 0.92;
 }
 .pod .dots {
   display: flex;
   gap: 5px;
 }
 .pod .dot {
-  width: 7px;
-  height: 7px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
   background: var(--song);
   opacity: 0.9;
 }
 .pod .draft {
   font-variant-numeric: tabular-nums;
-  opacity: 0.72;
+  opacity: 0.82;
   color: var(--song);
+}
+.pod .draft::before {
+  content: "•";
+  margin: 0 7px 0 3px;
+  opacity: 0.45;
+  color: var(--bone);
 }
 
 .ruler {

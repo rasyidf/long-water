@@ -1,5 +1,6 @@
 /** The additive bloom pass: sonar-lit seabed, lit krill/fish, and song rings. */
 import { COL, C, NCOL } from "../config/constants";
+import { SPECIES } from "../config/species";
 import type { GameContext } from "../core/GameContext";
 import type { System } from "../core/System";
 
@@ -36,8 +37,12 @@ export class GlowRenderer implements System {
 
     for (const s of ctx.schools.schools) {
       if (s.lit < 0.06 || Math.abs(s.x - cam.x) > 5000) continue;
+      const sp = SPECIES[s.species] ?? SPECIES[0];
       for (const f of s.fish) gg.rect(cam.sx(f.x), cam.sy(f.y), 2.2, 2.2);
-      gg.fill({ color: C.silver, alpha: s.lit * 0.75 });
+      gg.fill({
+        color: sp.glowColor ?? sp.baseColor ?? C.silver,
+        alpha: s.lit * 0.75,
+      });
     }
 
     for (const p of ctx.song.pings) {

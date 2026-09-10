@@ -55,6 +55,30 @@ export class Heightfield {
     // zone (coral, reef fish) — but never so shallow the whale beaches
     for (let i = 0; i < NCOL; i++)
       this.floorY[i] = Math.max(200, this.floorY[i]);
+
+    this.carveTrenches(rng);
+  }
+
+  /** Punch a few narrow, near-vertical slots through canyon/trench cells. Run
+   * after the smoothing passes so the walls stay sharp instead of blurring
+   * into a shallow bowl — the route needs the occasional plunge into black. */
+  private carveTrenches(rng: Rng): void {
+    for (let cell = 1; cell < NCELL - 1; cell++) {
+      const name = TILES[this.tiles[cell]].name;
+      if (name !== "canyon" && name !== "trench") continue;
+      if (rng.next() < 0.45) continue;
+      const centre = Math.round(((cell + rng.next()) * CELL) / COL);
+      const halfW = rng.next() < 0.3 ? 1 : 0;
+      const floor = rng.range(4700, 5800);
+      for (let i = centre - halfW - 1; i <= centre + halfW + 1; i++) {
+        if (i < 2 || i > NCOL - 3) continue;
+        const d = clamp(Math.abs(i - centre) / (halfW + 1), 0, 1);
+        this.floorY[i] = Math.max(
+          this.floorY[i],
+          lerp(floor, this.floorY[i], d * d),
+        );
+      }
+    }
   }
 
   floorAt(x: number): number {

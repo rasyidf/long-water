@@ -8,7 +8,7 @@
  * the reef instead of a decal floating on top of it. Five kinds; a per-item
  * hue jitter keeps a patch from reading as one flat colour.
  */
-import { COL, C, NCOL } from "../config/constants";
+import { COL, NCOL } from "../config/constants";
 import { clamp, hash01 } from "../core/math";
 import { lightAt } from "../core/light";
 import { mixColor } from "./color";
@@ -22,6 +22,10 @@ type Fn = (fx: number, fy: number) => P;
 
 /** blend target that sinks coral colours back toward the water */
 const WATER = 0x14384a;
+
+/** reef palette — one hue per kind so a patch reads as a mixed community, not
+ * a monoculture: fan / staghorn / brain / tube sponge / sea whip */
+const HUE = [0xff6f6b, 0xdd6f9e, 0xe0b45c, 0xc27bd6, 0x8f83d8] as const;
 
 export class CoralRenderer implements System {
   readonly name = "render:coral";
@@ -50,16 +54,21 @@ export class CoralRenderer implements System {
         Math.sin(clock.t * 1.9 + cr.ph * 2.3) * 0.02;
       const p: Fn = (fx, fy) => [px + fx + sway * fy, py - fy];
 
-      // sunk well toward the water so it sits in the reef, warmed a touch by
-      // the per-item hue jitter; tips/rims stay bright
-      const body = mixColor(C.coral, WATER, 0.44 + tone * 0.16);
-      const tip = mixColor(C.coralGlow, 0xfff1e2, 0.15);
+      // per-kind hue, jittered per item, then sunk toward the water so it sits
+      // in the reef instead of glowing; tips/rims stay bright
+      const k = cr.kind % 5;
+      const hue = mixColor(
+        HUE[k],
+        HUE[(k + 1 + ((tone * 3) | 0)) % 5],
+        tone * 0.35,
+      );
+      const body = mixColor(hue, WATER, 0.36 + tone * 0.14);
+      const tip = mixColor(hue, 0xfff1e2, 0.5);
 
       // contact shadow / holdfast
       g.ellipse(px, py + 2 * sc, h * 0.4, h * 0.1);
       g.fill({ color: 0x02050a, alpha: a * 0.32 });
 
-      const k = cr.kind % 5;
       if (k === 0) this.fan(g, p, h, a, body, tip);
       else if (k === 1) this.staghorn(g, p, h, a, body, tip, tone);
       else if (k === 2) this.brain(g, p, h, a, body, tip);
