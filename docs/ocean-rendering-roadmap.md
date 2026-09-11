@@ -62,7 +62,7 @@ lighting-model gaps, then missing polish/features, then architecture.
 ## Bugs (Breaking/Visual Corruption)
 
 ### 1. Time-of-day never advances during play — the day/night system is inert
-- **Status:** ☐ Not started
+- **Status:** ☑ Done (hook) — 2026-09-11. `BackgroundRenderer` renders a private live copy of the defaults and advances `sky.timeOfDay` by `clock.dt / water.dayLength` each frame. `dayLength` ships at **0 (frozen)** as a deliberate constant: whether the game runs a day cycle is a design call, now a one-number change in `OCEAN_DEFAULTS.water` rather than an inert dial.
 - **Severity:** High — this is most of why the ocean reads as flat next to the whale
 - **Description:** `BackgroundRenderer.render()` calls `oceanParams()`
   (params.ts:93) every frame, which returns the module-level `active` object —
@@ -86,7 +86,7 @@ lighting-model gaps, then missing polish/features, then architecture.
 - **Impact:** Unblocks #8, and is a prerequisite for #6/#9 mattering visually.
 
 ### 2. God-ray shafts originate from a flat sea-level line, not the traced wave surface
-- **Status:** ☐ Not started
+- **Status:** ☑ Done — 2026-09-11. `drawShafts` roots each ray on `surfaceHeightAt(traced, wx, t)` for the wave field the last `drawSurface` traced (`OceanView.traced`), so the tops ride the crests.
 - **Severity:** Medium — visible seam between two things that should be one surface
 - **Description:** `drawShafts` (OceanView.ts:465-522) computes its origin as
   `const y0 = cam.sy(0);` (line 477) — a perfectly flat line — and never reads
@@ -131,7 +131,7 @@ lighting-model gaps, then missing polish/features, then architecture.
 - **Testing:** Procgen "gale" preset, zoomed in on one crest.
 
 ### 4. Sunlit slab bands read as visible steps, not a gradient
-- **Status:** ☐ Not started
+- **Status:** ☐ Reopened — 2026-09-11. A first fix drew each `column.slabs` step as three thinner tiers, which tripled the full-width translucent overdraw and measurably slowed the game on fill-rate-bound GPUs, so it was reverted the same day. The right fix is a single gradient fill (`FillGradient` / a baked texture, as `waterTex` already does), not more tiers.
 - **Severity:** Medium — same shape of problem as the whale's hard-edged countershade bands (whale doc #16)
 - **Description:** `drawSurface`'s slab pass (OceanView.ts:336-354) draws
   `n2 = Math.round(p.column.slabs)` nested copies of the wave trace, each offset
@@ -214,7 +214,7 @@ mostly doesn't.*
   way shafts and caustics already do.
 
 ### 8. Deep-water colour grading is baked once and stays palette-blind
-- **Status:** ☐ Not started
+- **Status:** ☑ Done — 2026-09-11. The column and dark-gradient sprites are tinted by `paletteShift(pal.water, REF_PAL.water)` — white (a no-op) at the shipped hour, following the sky's hue once it moves. The baked gradient is also re-baked through `waterTint` when `water.absorption` changes.
 - **Severity:** Medium–High — directly explains why "the sea doesn't feel atmospheric"
 - **Description:** `BackgroundRenderer.init()` bakes three gradient textures
   from fixed hex/rgba stops: the per-zone `waterTex` (BackgroundRenderer.ts:24-41,
@@ -239,7 +239,7 @@ mostly doesn't.*
 - **Depends on:** #1 (won't be visible in actual play until time-of-day moves)
 
 ### 9. No colour-absorption-with-depth tint (reds drop out first)
-- **Status:** ☐ Not started
+- **Status:** ☑ Done (column) — 2026-09-11. `column.waterTint(base, y, absorption)` is the depth LUT (R fastest, then G, then B); the per-zone column gradient is baked through it, dialled by `water.absorption` (default 0.25). Applying it to the whale / terrain / coral fills is still open.
 - **Severity:** Low–Medium
 - **Description:** [reef-and-wfc-notes.md §3](reef-and-wfc-notes.md#3-backlog--what-else-the-reef--stage-can-take)
   lists "Colour absorption with depth (reds drop out first) — a cheap tint LUT"
@@ -293,7 +293,7 @@ into a second list. §3 also names "Colour absorption with depth" and
   `foamRuns` already derives whitecap extents from the trace.
 
 ### 12. Thermocline shimmer layer at ~600 world units
-- **Status:** ☐ Not started
+- **Status:** ☑ Done — 2026-09-11. `drawColumn` draws a rippled seam at `water.thermoclineDepth` (`thermoclineOffset`) with a shimmering bright thread (`thermoclineShimmer`), section `thermocline`.
 - **Severity:** Low — net-new feature
 - **Description:** §3 backlog item ("one faint refraction-shimmer layer at
   ~600 u"), confirmed absent — no `thermocline` reference anywhere in `src/`.
@@ -304,7 +304,7 @@ into a second list. §3 also names "Colour absorption with depth" and
   around 600 world units.
 
 ### 13. Bioluminescence sparks below `DARK_START`
-- **Status:** ☐ Not started
+- **Status:** ☑ Done — 2026-09-11. `drawSparks` into the new additive `L.sparks` layer: `sparkAt` plankton flashes with a slow bloom envelope, gated per spark by `sparkGate(worldY)` (0 above `DARK_START`, 1 by `DARK_FULL`). Marine snow moved to `drawSnow` — soft motes on an fbm current, section `snow`.
 - **Severity:** Low — net-new feature
 - **Description:** §3 backlog item, confirmed absent — no `bioluminesc*` match
   anywhere in `src/`. The existing "marine snow" particle field
@@ -357,7 +357,7 @@ into a second list. §3 also names "Colour absorption with depth" and
   playbook.
 
 ### 16. No runtime hook for per-zone/per-region parameter variation
-- **Status:** ☐ Not started
+- **Status:** ☑ Done — 2026-09-11. `BackgroundRenderer.params()` returns the dev-tools override when one is live and the game's own mutable copy otherwise; the day-cycle tick uses it. Per-zone seed variation (#5) can hang off the same copy.
 - **Severity:** Low–Medium — architectural precondition for #5 and #1
 - **Description:** `setOceanParams`, `OCEAN_PRESETS`, and the time-of-day
   advance are all dev-tools-only entry points (`params.ts:96-98`'s doc comment:
@@ -421,4 +421,34 @@ progress" → "Done" as you work.
 
 For complex items, consider opening a GitHub issue linked back to this doc.
 
-**Last updated:** 2026-09-11 (initial audit, no rewrite has happened yet)
+## Progress
+
+### 2026-09-11 — water column pass
+- New pure module `src/render/ocean/column.ts` (+ `column.test.ts`, 20 cases): `waterTint` depth
+  absorption LUT, `paletteShift` / `mulColor` for the hour-relative column tint, `murkLens` drifting
+  silt haze, `moteAt` / `snowMote` marine snow on an fbm current, `sparkAt` / `sparkGate` /
+  `sparkEnvelope` bioluminescence, `thermoclineOffset` / `thermoclineShimmer`.
+- `OceanParams.water` (`WaterParams`) added with defaults tuned to keep the shipped waterline shot
+  unchanged; every preset patches it. `OceanView` gained `drawColumn`, `drawSnow`, `drawSparks` and
+  the draw sections `murk`, `thermocline`, `snow`, `sparks`; `Layers` gained `column` (under the
+  surface) and the additive `sparks` (over the darkness).
+- Closed: #1 (hook; frozen by default), #2, #4, #8, #9 (column only), #12, #13, #16. The ocean tab in
+  `tools.html` has a "water column" block for every dial plus an "in the dark" camera.
+- Still open: #3, #5, #6, #7, #10, #11, #14, #15.
+
+#### Performance follow-up, same day
+
+Play felt sluggish after the column pass. Profiled headless (CPU profile +
+frame timing, before/after via `git stash`): the JS main thread had grown
+~2 ms/frame and software-raster frame time ~45%, both from **fill area**,
+not maths — three sub-tiers per slab, three nested screen-sized ellipses per
+haze lens (9 lenses), one `fill()` per snow mote, 48 capped strokes on the
+thermocline thread. Fixes: slabs back to one tier per step (#4 reopened),
+one ellipse per lens and 14 lenses per unit `murk` instead of 26, snow filled
+in four brightness buckets, thermocline at 24 segments, single-octave snow
+current. After: raster time equal to the pre-pass build, JS main thread
+~11 ms/frame vs ~14 before the pass. Rule of thumb this leaves behind: every
+translucent shape that spans the viewport is a full-screen overdraw pass —
+budget them, and prefer one gradient fill to a stack of flat ones.
+
+**Last updated:** 2026-09-11 (water column pass + performance follow-up — see Progress)

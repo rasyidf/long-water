@@ -14,6 +14,7 @@ import {
 export const LAYER_ORDER = [
   "sky",
   "water",
+  "column",
   "surface",
   "shafts",
   "snow",
@@ -27,6 +28,7 @@ export const LAYER_ORDER = [
   "ships",
   "caustics",
   "darkness",
+  "sparks",
   "glow",
 ] as const;
 
@@ -42,6 +44,9 @@ export class Layers {
    * gulls and the horizon haze. Drawn procedurally, not a baked gradient. */
   readonly sky = new Graphics();
   readonly waterSprite = new Sprite();
+  /** the body of the water: drifting haze lenses and the thermocline seam,
+   * drawn over the column gradient and under everything that swims in it */
+  readonly column = new Graphics();
   /** animated wavy waterline */
   readonly surface = new Graphics();
   readonly shafts = new Graphics();
@@ -67,6 +72,10 @@ export class Layers {
   readonly darkGrad = new Sprite();
   readonly darkFill = new Graphics();
 
+  /** bioluminescent sparks in the deep — additive, drawn over the darkness so
+   * they read as light sources rather than as specks the dark swallows */
+  readonly sparks = new Graphics();
+
   /** additive, blurred bloom pass */
   readonly glowGraphics = new Graphics();
   readonly glow = new Container();
@@ -76,6 +85,7 @@ export class Layers {
   constructor() {
     this.shafts.blendMode = "add";
     this.caustics.blendMode = "add";
+    this.sparks.blendMode = "add";
     this.glow.blendMode = "add";
     this.glow.addChild(this.glowGraphics);
     try {
@@ -87,6 +97,7 @@ export class Layers {
     this.world.addChild(
       this.sky,
       this.waterSprite,
+      this.column,
       this.surface,
       this.shafts,
       this.snow,
@@ -101,6 +112,7 @@ export class Layers {
       this.caustics,
       this.darkFill,
       this.darkGrad,
+      this.sparks,
       this.glow,
     );
     this.overlay.addChild(this.vignette);

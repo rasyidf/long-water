@@ -10,13 +10,32 @@
  * its params explicitly instead of reaching for globals.
  *
  * Call order matters once per frame: `drawSurface` traces the wave field and
- * caches it, and `drawCaustics` reuses that trace.
+ * caches it, and `drawShafts` / `drawCaustics` reuse that trace.
+ *
+ * The deep column — haze lenses, the thermocline, marine snow and the sparks
+ * of the dark — is the `drawColumn` / `drawSnow` / `drawSparks` trio at the
+ * bottom; their math is in `column.ts`.
  */
 import type { Graphics } from "pixi.js";
 
+import { lightAt } from "../../core/light";
 import { clamp01, hash01, lerp } from "../../core/math";
 import type { Camera } from "../../core/Camera";
+import type { Snow } from "../../state/Hazards";
 import { mixColor } from "../color";
+import {
+  moteAt,
+  murkLens,
+  snowMote,
+  sparkAt,
+  sparkGate,
+  thermoclineOffset,
+  thermoclineShimmer,
+  WRAP,
+  type Mote,
+  type MurkLens,
+  type Spark,
+} from "./column";
 import type { OceanParams } from "./params";
 import {
   birds,
@@ -34,6 +53,7 @@ import {
   causticCells,
   glints,
   foamRuns,
+  surfaceHeightAt,
   traceSurface,
   waveEnvelope,
   type SurfaceSample,
@@ -55,6 +75,10 @@ export const OCEAN_SECTIONS = [
   "spray",
   "shafts",
   "caustics",
+  "murk",
+  "thermocline",
+  "snow",
+  "sparks",
 ] as const;
 
 export type OceanSection = (typeof OCEAN_SECTIONS)[number];
@@ -66,11 +90,30 @@ export interface OceanDrawOptions {
 
 const ALL = (): boolean => true;
 
+/** brightness buckets the marine snow is filled in (alpha spans 0..1/3) */
+const SNOW_BUCKETS = 4;
+
 export class OceanView {
   /** this frame's traced waterline, in world units relative to the waterline */
   private samples: SurfaceSample[] = [];
   /** `p.wave` with the frame's near-surface gain folded into `wind` */
   private scaled: WaveParams | null = null;
+  /** the wave field the last `drawSurface` traced, so the god-rays can be
+   * rooted on the same surface it drew rather than on a flat sea level */
+  private traced: WaveParams | null = null;
+  // scratch for the column passes — each is rewritten per item, never grown
+  private readonly lens: MurkLens = { x: 0, y: 0, w: 0, h: 0, d: 0, alpha: 0 };
+  private readonly mote: Mote = { x: 0, y: 0, d: 0, s: 0, a: 0 };
+  /** placed motes for this frame's snow, grown to the level's count once */
+  private readonly motes: { x: number; y: number; r: number; b: number }[] = [];
+  private readonly spark: Spark = {
+    x: 0,
+    y: 0,
+    d: 0,
+    r: 0,
+    a: 0,
+    color: 0,
+  };
   /** reused flat-coordinate buffers for the two cloud silhouette passes */
   private body: number[] = [];
   private lit: number[] = [];
@@ -304,6 +347,7 @@ export class OceanView {
     const env = waveEnvelope(wave);
     const ampPx = env * sc;
 
+    this.traced = wave;
     if (y0 < -160 - ampPx || y0 > cam.vh + 80) {
       this.samples.length = 0;
       return;
@@ -338,6 +382,10 @@ export class OceanView {
       // dissolves into the column instead of ending on a hard line
       const lit = mixColor(surf, pal.glow, 0.3 + light.daylight * 0.22);
       const n2 = Math.max(0, Math.round(p.column.slabs));
+      // One tier per dial step. Every slab is a full-width translucent fill
+      // over the whole sunlit band, so subdividing the stack to hide the
+      // steps (roadmap #4) tripled the overdraw and cost real frame time on
+      // integrated GPUs — a gradient fill is the right fix, not more tiers.
       for (let k = 0; k < n2; k++) {
         const f = (k + 1) / n2;
         // purely world-scaled, so `slabDepth` means the depth it says it does
@@ -484,6 +532,9 @@ export class OceanView {
     const i1 = Math.ceil((cam.x + halfW) / step) + 1;
     const pal = skyPalette(p.sky.timeOfDay);
     const col = mixColor(0x78d6c8, pal.glow, 0.35);
+    // root each ray on the wave the waterline was drawn from, so its top rides
+    // the crests and troughs instead of sitting on a flat sea level
+    const wave = this.traced ?? p.wave;
     for (let i = i0; i <= i1; i++) {
       const r = hash01(i);
       const r2 = hash01(i * 2 + 101);
@@ -491,6 +542,7 @@ export class OceanView {
       const wx = i * step + (r - 0.5) * step * 0.8;
       const drift = Math.sin(t * (0.14 + r2 * 0.22) + i * 1.7) * (30 + r3 * 55);
       const x0 = cam.sx(wx) + drift * sc;
+      const y0 = cam.sy(surfaceHeightAt(wave, wx + drift, t));
       const topW = (22 + r * 46) * sc;
       const len = (1200 + r3 * 1100) * sc;
       const lean = light.lean * len * (0.7 + r2 * 0.6);
@@ -567,6 +619,194 @@ export class OceanView {
       }
     }
   }
+  // ── deep column ──────────────────────────────────────────────────────────
+
+  /**
+   * The body of the water: drifting lenses of suspended silt, and the
+   * thermocline — a faint shimmering seam where the warm surface layer sits on
+   * the cold water under it. Both are palette-aware so a night column doesn't
+   * carry midday haze.
+   */
+  drawColumn(
+    g: Graphics,
+    p: OceanParams,
+    cam: Camera,
+    t: number,
+    opts: OceanDrawOptions = {},
+  ): void {
+    g.clear();
+    const show = opts.show ?? ALL;
+    const { vw: VW, vh: VH, scale: sc } = cam;
+    const w = p.water;
+    const pal = skyPalette(p.sky.timeOfDay);
+    const light = skyLight(p.sky.timeOfDay);
+    const worldY = (py: number): number => cam.y + (py - VH / 2) / sc;
+
+    if (show("murk") && w.murk > 0.01) {
+      // silt catches the light: a pale lens near the surface, hardly there in
+      // the dark. One ellipse per lens — each is a screen-sized translucent
+      // fill, so lens count is the fill-rate budget here; the soft edge comes
+      // from the low alpha and the lenses overlapping, not from nesting.
+      const col = mixColor(pal.water, pal.glow, 0.25 + light.daylight * 0.2);
+      const n = Math.round(w.murk * 14);
+      for (let i = 0; i < n; i++) {
+        const L = murkLens(i, p.wave.seed, cam.x, cam.y, t, w, this.lens);
+        const px = (L.x - WRAP / 2) * sc + VW / 2;
+        const py = (L.y - WRAP / 2) * sc + VH / 2;
+        const rw = L.w * sc;
+        const rh = L.h * sc;
+        if (px + rw < 0 || px - rw > VW || py + rh < 0 || py - rh > VH)
+          continue;
+        // silt lives in the water: fade a lens out as it nears the waterline
+        // so the column layer never paints haze over the sky
+        const wy = worldY(py);
+        const a =
+          L.alpha * (0.25 + 0.75 * lightAt(wy)) * clamp01((wy - L.h) / 220);
+        if (a < 0.004) continue;
+        g.ellipse(px, py, rw, rh);
+        g.fill({ color: col, alpha: a });
+      }
+    }
+
+    if (show("thermocline") && w.thermoclineStrength > 0.01) {
+      const yc = cam.sy(w.thermoclineDepth);
+      const band = 34 * sc;
+      if (yc + band * 3 > 0 && yc - band * 3 < VH) {
+        // the seam is a lens too: denser water below reads a shade darker,
+        // with a bright thread along the rippled top where light refracts
+        const [vx0, vx1] = cam.visibleX(60 / sc);
+        // 24 segments: each costs three fbm samples and its own capped stroke
+        const N = 24;
+        const k = clamp01(w.thermoclineStrength);
+        const dark = mixColor(pal.water, 0x03111c, 0.5);
+        const bright = mixColor(pal.water, pal.glow, 0.5);
+        const xAt = (i: number): number => vx0 + ((vx1 - vx0) * i) / N;
+        const top = (i: number): number =>
+          cam.sy(w.thermoclineDepth + thermoclineOffset(xAt(i), t, w));
+        const bot = (i: number): number =>
+          cam.sy(
+            w.thermoclineDepth +
+              thermoclineOffset(xAt(i) + 700, t * 0.8, w) * 0.7,
+          ) + band;
+        g.moveTo(cam.sx(xAt(0)), top(0));
+        for (let i = 1; i <= N; i++) g.lineTo(cam.sx(xAt(i)), top(i));
+        for (let i = N; i >= 0; i--) g.lineTo(cam.sx(xAt(i)), bot(i));
+        g.closePath();
+        g.fill({ color: dark, alpha: 0.06 * k });
+        // the thread is stroked a segment at a time, each at its own shimmer,
+        // so the light along the seam flickers instead of ruling a line
+        const threadA = 0.16 * k * (0.35 + 0.65 * light.daylight);
+        for (let i = 0; i < N; i++) {
+          const sh = thermoclineShimmer(xAt(i), t);
+          if (sh < 0.05) continue;
+          g.moveTo(cam.sx(xAt(i)), top(i));
+          g.lineTo(cam.sx(xAt(i + 1)), top(i + 1));
+          g.stroke({
+            width: 1 + 1.2 * sc,
+            color: bright,
+            alpha: threadA * sh,
+            cap: "round",
+          });
+        }
+      }
+    }
+  }
+
+  /**
+   * Marine snow: the level's motes, sinking and drifting on the current, drawn
+   * as soft round specks whose size and brightness follow their parallax depth.
+   * `snowDensity` above one invents extra motes from a hash; below one it
+   * simply draws fewer of the store's.
+   */
+  drawSnow(
+    g: Graphics,
+    p: OceanParams,
+    cam: Camera,
+    t: number,
+    snow: readonly Snow[],
+    opts: OceanDrawOptions = {},
+  ): void {
+    g.clear();
+    const show = opts.show ?? ALL;
+    const w = p.water;
+    if (!show("snow") || w.snowDensity <= 0) return;
+    const { vw: VW, vh: VH, scale: sc } = cam;
+    const n = Math.round(snow.length * Math.min(2, w.snowDensity));
+    const pal = skyPalette(p.sky.timeOfDay);
+    const col = mixColor(0xded6c6, pal.water, 0.2);
+    const surfY = cam.sy(0);
+    // Place every visible mote first, then fill them in a few brightness
+    // buckets: one `fill()` per bucket instead of one per mote keeps the
+    // Graphics instruction list (and its per-frame batching) short.
+    const pool = this.motes;
+    while (pool.length < n) pool.push({ x: 0, y: 0, r: 0, b: 0 });
+    let m = 0;
+    for (let i = 0; i < n; i++) {
+      const mt =
+        i < snow.length
+          ? moteAt(snow[i], i, cam.x, cam.y, t, w, this.mote)
+          : snowMote(i, p.wave.seed, cam.x, cam.y, t, w, this.mote);
+      const px = (mt.x - WRAP / 2) * sc + VW / 2;
+      const py = (mt.y - WRAP / 2) * sc + VH / 2;
+      if (px < -5 || px > VW + 5 || py < -5 || py > VH + 5) continue;
+      // snow is in the water, not the air — nothing above the waterline
+      if (py < surfY) continue;
+      const o = pool[m++];
+      o.x = px;
+      o.y = py;
+      // screen-sized, like dust on the lens: the near motes are the big ones
+      o.r = mt.s * (0.7 + 0.7 * mt.d) * w.snowSize;
+      o.b = Math.min(SNOW_BUCKETS - 1, Math.floor(mt.a * SNOW_BUCKETS * 3));
+    }
+    for (let b = 0; b < SNOW_BUCKETS; b++) {
+      let any = false;
+      for (let i = 0; i < m; i++) {
+        const o = pool[i];
+        if (o.b !== b) continue;
+        g.circle(o.x, o.y, o.r);
+        any = true;
+      }
+      if (any) g.fill({ color: col, alpha: (b + 0.5) / (SNOW_BUCKETS * 3) });
+    }
+  }
+
+  /**
+   * Bioluminescence: sparse plankton flashes that only live below the light
+   * line. Drawn into an additive layer as a wide faint halo under a small
+   * bright core, gated per spark on the ambient light at its world depth.
+   */
+  drawSparks(
+    g: Graphics,
+    p: OceanParams,
+    cam: Camera,
+    t: number,
+    opts: OceanDrawOptions = {},
+  ): void {
+    g.clear();
+    const show = opts.show ?? ALL;
+    const w = p.water;
+    if (!show("sparks") || w.sparks <= 0.01) return;
+    const { vw: VW, vh: VH, scale: sc } = cam;
+    // nothing to do if the whole screen is in the light
+    if (sparkGate(cam.y + VH / 2 / sc) <= 0.001) return;
+    const n = Math.round(w.sparks * 70);
+    for (let i = 0; i < n; i++) {
+      const s = sparkAt(i, p.wave.seed, cam.x, cam.y, t, w, this.spark);
+      if (s.a < 0.02) continue;
+      const px = (s.x - WRAP / 2) * sc + VW / 2;
+      const py = (s.y - WRAP / 2) * sc + VH / 2;
+      if (px < -8 || px > VW + 8 || py < -8 || py > VH + 8) continue;
+      const gate = sparkGate(cam.y + (py - VH / 2) / sc);
+      const a = s.a * gate;
+      if (a < 0.02) continue;
+      const r = s.r * w.sparkSize * (0.7 + 0.3 * s.d);
+      g.circle(px, py, r * 3.2);
+      g.fill({ color: s.color, alpha: a * 0.14 });
+      g.circle(px, py, r);
+      g.fill({ color: s.color, alpha: a * 0.85 });
+    }
+  }
+
   // ── internals ────────────────────────────────────────────────────────────
 
   /** trace a flat `[x, y, …]` outline in sky space as one closed path */

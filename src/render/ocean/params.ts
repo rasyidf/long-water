@@ -8,9 +8,12 @@
  * `core/light.ts` lets the tools flatten the depth falloff.
  */
 import { SUN_LEAN } from "../../config/constants";
+import type { WaterParams } from "./column";
 import type { OceanDrawOptions, OceanSection } from "./OceanView";
 import { skyLight, type SkyParams } from "./sky";
 import type { WaveParams } from "./surface";
+
+export type { WaterParams } from "./column";
 
 /** the near-surface water column: sunlit banding, god-rays and caustics */
 export interface ColumnParams {
@@ -34,6 +37,8 @@ export interface OceanParams {
   wave: WaveParams;
   sky: SkyParams;
   column: ColumnParams;
+  /** the deep column behind everything: haze, snow, sparks, absorption */
+  water: WaterParams;
 }
 
 /**
@@ -85,6 +90,26 @@ export const OCEAN_DEFAULTS: OceanParams = {
     shaftWisp: 0.55,
     causticStrength: 1,
   },
+  // Tuned so the default hour still reads as the shipped column, with life in
+  // it: faint silt lenses, a whisper of thermocline, the same snow density the
+  // levels place (now as soft motes riding a current), and a sparse plankton
+  // glow once the light is gone. `dayLength` 0 keeps the sky frozen at
+  // `sky.timeOfDay` — the hook exists, the game hasn't decided to turn it yet.
+  water: {
+    murk: 0.35,
+    murkScale: 900,
+    murkDrift: 10,
+    absorption: 0.25,
+    thermoclineDepth: 600,
+    thermoclineStrength: 0.35,
+    snowDensity: 1,
+    snowSize: 1,
+    snowDrift: 9,
+    current: 14,
+    sparks: 0.6,
+    sparkSize: 1,
+    dayLength: 0,
+  },
 };
 
 let active: OceanParams = OCEAN_DEFAULTS;
@@ -104,6 +129,7 @@ export const cloneOceanParams = (
   wave: { ...p.wave, octaves: p.wave.octaves.map((o) => ({ ...o })) },
   sky: { ...p.sky },
   column: { ...p.column },
+  water: { ...p.water },
 });
 
 /**
