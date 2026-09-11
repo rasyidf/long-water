@@ -81,3 +81,14 @@ concrete, already-written next action across the whole codebase — it's a full 
 only been checked in isolation. Doing that verification pass is lower-risk and higher-value than
 any new mechanic right now, since a rendering regression here would be visible on every whale, every
 frame.
+
+## 5. Reef/seafloor gameplay
+
+**Current state:** coral is spawn-only decoration (`world/level/schema.ts`'s `coral` directive →
+`CoralRenderer.ts`) with no system reading its position — no feeding, hazard, or sound hook, and
+no `config/scoring.ts` entry, unlike every other terrain/entity interaction in the game.
+
+**Do:** see **[reef-gameplay-options.md](../reef-gameplay-options.md)** — three pillar-grounded
+options (feeding ground, risk/obstacle, sound/shelter) with system hooks and scope estimates. No
+direction chosen yet; that doc is where the decision and the resulting brief should land, per §3's
+"connect to a pillar before implementing" rule above.
