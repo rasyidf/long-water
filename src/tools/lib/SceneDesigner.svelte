@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { Snippet } from "svelte";
+  import { untrack, type Snippet } from "svelte";
 
   import type { LevelDef } from "../../world/level/schema";
   import { SceneHost, type LoadOpts } from "../SceneHost";
@@ -13,6 +13,7 @@
     level,
     seed = $bindable(),
     loadOpts,
+    light = false,
     controls,
     overlay,
     onready,
@@ -21,13 +22,18 @@
     level: LevelDef;
     seed: number;
     loadOpts?: LoadOpts;
+    /** starting state of the scene-light toggle. Designers that are *about*
+     * the lighting (the ocean playground) want it on; procgen shape designers
+     * want it off so the falloff doesn't hide what they are tuning. */
+    light?: boolean;
     controls: Snippet;
     overlay?: Snippet;
     onready?: (host: SceneHost) => void;
   } = $props();
 
   let host = $state<SceneHost | undefined>();
-  let lit = $state(false);
+  // the toggle owns its state from here on; `light` is only the starting value
+  let lit = $state(untrack(() => light));
   let timer = 0;
 
   function mount(el: HTMLDivElement) {

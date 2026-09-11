@@ -9,6 +9,9 @@ import type { System } from "../core/System";
 const W = 120;
 const SPINE = 86; // x of the vertical scale line
 const MAX_D = 500; // metres the scale runs to
+const SPAN_MIN = 160; // px length of the scale, clamped between these
+const SPAN_MAX = 340;
+const TOP_CLEAR = 112; // px kept free for the score/clock/weather stack
 const BONE = "222,214,198";
 const SONG = "159,232,213";
 
@@ -29,12 +32,21 @@ export class DepthRuler implements System {
     const c = this.c;
     c.clearRect(0, 0, W, VH);
 
-    const top = 54;
-    const sonarR = Math.min(44, (VH - top) * 0.11);
-    const span = VH - top - sonarR * 2 - 22;
+    // a compact scale centred on the viewport, kept clear of the clock/weather
+    // stack above it and the sonar dish below
+    const sonarR = Math.min(44, (VH - TOP_CLEAR) * 0.11);
+    const floorClear = VH - sonarR * 2 - 36;
+    const want = Math.min(SPAN_MAX, Math.max(SPAN_MIN, VH * 0.42));
+    const top = Math.max(TOP_CLEAR, (VH - want) / 2);
+    const span = Math.max(0, Math.min(want, floorClear - top));
     const yOf = (d: number) => top + Math.min(1, Math.max(0, d / MAX_D)) * span;
     const dm = Math.max(0, whale.y * UNIT_M);
     const py = yOf(dm);
+
+    // ---- the seabed, under the scale so its labels stay legible ----
+    const fy = yOf(world.floorAt(whale.x) * UNIT_M);
+    c.fillStyle = "rgba(39,74,92,.8)";
+    c.fillRect(SPINE - 4, fy, W - SPINE + 4, Math.max(2, yOf(MAX_D) - fy + 1));
 
     // ---- the scale: spine + ticks + labels ----
     c.strokeStyle = `rgba(${BONE},.5)`;
@@ -75,11 +87,6 @@ export class DepthRuler implements System {
     c.fillText("light ends", 10, ly - 9);
     c.fillStyle = `rgba(${SONG},.36)`;
     c.fillText(`≈ ${Math.round(DARK_FULL * UNIT_M)} m`, 10, ly + 9);
-
-    // ---- the seabed ----
-    const fy = yOf(world.floorAt(whale.x) * UNIT_M);
-    c.fillStyle = "rgba(39,74,92,.8)";
-    c.fillRect(SPINE - 4, fy, W - SPINE + 4, Math.max(2, yOf(MAX_D) - fy + 1));
 
     // ---- the whale's depth marker ----
     c.fillStyle = "#62c7bb";

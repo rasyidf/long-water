@@ -239,6 +239,11 @@ into the level file is the obvious next step.
   vignette and world-anchored darkness gradient below the light line.
 - Marine snow parallax, god-rays near the surface, an animated waterline, and
   caustics.
+- The sea surface and the sky above it are one procedural system (`render/ocean/`):
+  a Gerstner wave sum with Perlin swell-grouping and chop, whitecaps taken from
+  the crests the field says are breaking, and a time-of-day sky — palette,
+  sun/moon arc, cloud decks, stars, gulls — all keyed off one dial. Tune it live
+  in `tools.html#ocean`.
 
 ---
 
@@ -472,6 +477,25 @@ canvas; a level's `leg.finishX` may end sooner. Whale length 280 (28 m). Light:
   `SpineWhaleView` is a stub — implement its `draw()` and pass an instance to
   `new WhaleRenderer(view)` to switch to a Spine rig; the simulation is
   unaffected because `SpineChain` still produces the pose.
+- **Sea surface + sky** (`render/ocean/`): `OceanView` draws the sky dome,
+  weather, waterline and the near-surface light; the shape math behind it is
+  Pixi-free and unit-tested —
+  - `surface.ts` — a **Gerstner** wave sum traced parametrically (crests cusp,
+    troughs flatten), with Perlin fbm modulating each octave into travelling
+    swell *groups* and adding a drifting chop. Octave speeds come from the real
+    deep-water dispersion relation, so long swell outruns short chop for free.
+    Whitecaps, sun glitter and caustics are all derived from that one trace, so
+    they can never drift out of agreement with the drawn crest.
+  - `sky.ts` — palette keyframes, the sun/moon arc, cloud banks (an fbm-shaped
+    row of ellipses resolved to **one** union silhouette so overlaps don't
+    double the alpha), stars and gulls. These live in *sky space* — horizontal
+    in viewport widths, vertical 0..1 from waterline to screen top — because the
+    sky is a parallaxed backdrop, not a world object, and must not resize with
+    camera zoom.
+  - `params.ts` — `OCEAN_DEFAULTS` plus the dev-tools-only `setOceanParams` /
+    `setOceanSections` hooks the procgen viewer drives. `sunLean()` is the one
+    source for "which way is the sun", read by both god-rays and ship shadows.
+  - `core/noise.ts` — the shared Perlin / fbm / ridged / domain-warp toolkit.
 - **Depth darkness**: a world-anchored gradient (surface → 180 m) plus a solid
   fill below the light line; god-rays fade on the same `lightAt(y)` curve
   (`core/light.ts`).

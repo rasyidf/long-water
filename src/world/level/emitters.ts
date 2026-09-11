@@ -55,16 +55,20 @@ const rint = (rng: Rng, r: Range): number =>
 function makeSwarm(rng: Rng, x: number, y: number, r: number): Swarm {
   const parts: KrillPart[] = [];
   for (let k = 0; k < 120; k++) {
+    // seed a flat, horizontally drawn-out patch; KrillSystem takes it from there
+    const a = rng.next() * Math.PI * 2;
+    const d = Math.sqrt(rng.next()) * r * 0.8;
     parts.push({
-      a: rng.next() * Math.PI * 2,
-      r: Math.sqrt(rng.next()) * r,
+      ox: Math.cos(a) * d * 1.2,
+      oy: Math.sin(a) * d * 0.5,
+      vx: 0,
+      vy: 0,
       ph: rng.next() * 9,
       px: 0,
       py: 0,
-      kx: 0,
-      ky: 0,
     });
   }
+  rng.next(); // was the swarm's spin; still drawn so seeded layouts don't shift
   return {
     x,
     y,
@@ -74,7 +78,6 @@ function makeSwarm(rng: Rng, x: number, y: number, r: number): Swarm {
     parts,
     amount: 100,
     lit: 0,
-    spin: rng.next() < 0.5 ? -1 : 1,
     ph: rng.next() * 9,
     panic: 0,
   };

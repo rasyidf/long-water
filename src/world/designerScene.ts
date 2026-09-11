@@ -164,3 +164,58 @@ export function buildTerrainLevel(p: TerrainParams): LevelDef {
     },
   });
 }
+
+export interface OceanSceneParams {
+  /** ships riding the waterline. Off by default in the ocean tab: a ship's
+   * noise footprint is a wide translucent disc drawn over the waterline. */
+  ships: boolean;
+  /** a couple of wild whales cruising through the sunlit band */
+  pod: boolean;
+  /** fish schools catching the light just under the surface */
+  fish: boolean;
+  /** marine snow drifting through the column */
+  snow: boolean;
+}
+
+/**
+ * A stretch of open water with the seabed far below, for tuning the sea
+ * surface and the sky above it. Everything in it is optional company: the
+ * point of the scene is what `BackgroundRenderer` draws, so each extra only
+ * exists to give that a sense of scale.
+ */
+export function buildOceanLevel(p: OceanSceneParams): LevelDef {
+  const spawns: SpawnDirective[] = [];
+  if (p.snow) spawns.push({ kind: "snow", count: 420 });
+  if (p.ships)
+    spawns.push({
+      kind: "ship",
+      mode: "place",
+      items: [
+        { x: 3400, v: 42, len: 520 },
+        { x: 9200, v: -34, len: 880 },
+      ],
+    });
+  if (p.pod)
+    spawns.push({
+      kind: "whale",
+      mode: "place",
+      vx: [40, 70],
+      size: [0.92, 1.06],
+      age: [0.85, 1],
+      items: [
+        { x: 5400, y: 260 },
+        { x: 6100, y: 430 },
+      ],
+    });
+  if (p.fish)
+    spawns.push({
+      kind: "school",
+      mode: "place",
+      items: [
+        { x: 4200, y: 340, count: 34, spread: [90, 150] },
+        { x: 7600, y: 220, count: 26, spread: [70, 130] },
+        { x: 11200, y: 420, count: 30, spread: [90, 160] },
+      ],
+    });
+  return level("designer-ocean", spawns, { floor: "shelf" });
+}

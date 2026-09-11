@@ -1,12 +1,14 @@
 <script lang="ts">
   import Coral from "./designers/Coral.svelte";
   import Fauna from "./designers/Fauna.svelte";
+  import Ocean from "./designers/Ocean.svelte";
   import Squid from "./designers/Squid.svelte";
   import Terrain from "./designers/Terrain.svelte";
   import Whale from "./designers/Whale.svelte";
 
   const TABS = [
     { id: "terrain", label: "Terrain / WFC", cmp: Terrain },
+    { id: "ocean", label: "Ocean / sky", cmp: Ocean },
     { id: "whale", label: "Whale", cmp: Whale },
     { id: "coral", label: "Coral / reef", cmp: Coral },
     { id: "squid", label: "Squid", cmp: Squid },
