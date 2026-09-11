@@ -4,7 +4,7 @@
  * from these; the split keeps the shape math unit-testable (see
  * `geometry.test.ts`) and independent of the renderer.
  */
-import { clamp01, smoothstep } from "../../core/math";
+import { clamp01, smoothstep, type Vec2 } from "../../core/math";
 
 export const TAU = Math.PI * 2;
 /** arc position where the body ends and the tail stock hands off to the fluke */
@@ -113,4 +113,243 @@ export function rollBasis(
   out.cs = bx / bl;
   out.sn = by / bl;
   return out;
+}
+
+/**
+ * Cumulative arc length per spine vertex, index-aligned with `sp` and written
+ * into the caller's `cum` array so a pod of whales produces no per-frame
+ * garbage. Returns the total body length.
+ */
+export function buildArcLength(
+  sp: ReadonlyArray<Vec2>,
+  cum: number[],
+  last: number,
+): number {
+  cum[0] = 0;
+  let total = 0;
+  for (let i = 1; i <= last; i++) {
+    total += Math.hypot(sp[i].x - sp[i - 1].x, sp[i].y - sp[i - 1].y);
+    cum[i] = total;
+  }
+  return total;
+}
+
+/**
+ * Smoothed per-vertex spine tangents, written into `tan`. Averaging each
+ * vertex's neighbours removes the kink a piecewise-constant tangent leaves at
+ * every spine joint. A degenerate segment (two spine points collapsed
+ * together) keeps the previous vertex's tangent instead of snapping to +x.
+ */
+export function buildTangents(
+  sp: ReadonlyArray<Vec2>,
+  tan: Vec2[],
+  last: number,
+): void {
+  for (let i = 0; i <= last; i++) {
+    const a = sp[Math.max(0, i - 1)];
+    const b = sp[Math.min(last, i + 1)];
+    const dx = a.x - b.x;
+    const dy = a.y - b.y;
+    const len = Math.hypot(dx, dy);
+    if (len > 1e-6) {
+      tan[i].x = dx / len;
+      tan[i].y = dy / len;
+    } else if (i > 0) {
+      tan[i].x = tan[i - 1].x;
+      tan[i].y = tan[i - 1].y;
+    } else {
+      tan[i].x = 1;
+      tan[i].y = 0;
+    }
+  }
+}
+
+/**
+ * Interpolated spine position + unit tangent/perpendicular at arc position
+ * `t` ∈ [0,1], walking a pointer through the (monotonic) arc-length table
+ * rather than a binary search. Written into the three `out` vectors so the
+ * caller stays allocation-free. `fOut` is left untouched (keeping whatever it
+ * held from the previous call) if the interpolated tangent is degenerate.
+ */
+export function spineFrameAt(
+  sp: ReadonlyArray<Vec2>,
+  cum: ReadonlyArray<number>,
+  tan: ReadonlyArray<Vec2>,
+  total: number,
+  last: number,
+  t: number,
+  facing: number,
+  pOut: Vec2,
+  fOut: Vec2,
+  perOut: Vec2,
+): void {
+  const target = clamp01(t) * total;
+  let i = 0;
+  while (i < last - 1 && cum[i + 1] < target) i++;
+  const seg = cum[i + 1] - cum[i] || 1;
+  const k = clamp01((target - cum[i]) / seg);
+  pOut.x = sp[i].x + (sp[i + 1].x - sp[i].x) * k;
+  pOut.y = sp[i].y + (sp[i + 1].y - sp[i].y) * k;
+  const fx = tan[i].x + (tan[i + 1].x - tan[i].x) * k;
+  const fy = tan[i].y + (tan[i + 1].y - tan[i].y) * k;
+  const fl = Math.hypot(fx, fy);
+  if (fl > 1e-6) {
+    fOut.x = fx / fl;
+    fOut.y = fy / fl;
+  }
+  perOut.x = -fOut.y * facing;
+  perOut.y = fOut.x * facing;
+}
+
+/**
+ * World-space point offset `fwd` along the spine tangent `f` and `prp` along
+ * its perpendicular `per`, scaled by `scale` and added to the spine position
+ * `p`. Pure counterpart of `ProceduralWhaleView`'s screen-space `at()`
+ * helper — camera projection happens after this, in the view.
+ */
+export function bodyPoint(
+  p: Vec2,
+  f: Vec2,
+  per: Vec2,
+  fwd: number,
+  prp: number,
+  scale: number,
+  out: Vec2,
+): Vec2 {
+  out.x = p.x + (f.x * fwd + per.x * prp) * scale;
+  out.y = p.y + (f.y * fwd + per.y * prp) * scale;
+  return out;
+}
+
+/**
+ * Body cross-section at arc position `t`: an offset ellipse with vertical
+ * semi-axis `A`, ventral centre offset `C`, lateral semi-axis `B`, plus the
+ * projected half-extent `R` and cross-section angle `D` once rolled onto the
+ * near silhouette edge by the basis `cs`/`sn` (see `rollBasis`). Written into
+ * `out` so a caller can memoize on `t` without allocating.
+ */
+export interface Section {
+  A: number;
+  C: number;
+  B: number;
+  R: number;
+  D: number;
+}
+
+export function computeSection(
+  t: number,
+  width: number,
+  juv: number,
+  cs: number,
+  sn: number,
+  out: Section,
+): Section {
+  const d = topHalf(t, width, juv);
+  const v = botHalf(t, width, juv);
+  out.A = (d + v) * 0.5;
+  out.C = (v - d) * 0.5;
+  out.B = out.A * latK(t);
+  out.R = Math.hypot(out.A * cs, out.B * sn);
+  out.D = Math.atan2(out.B * sn, out.A * cs);
+  return out;
+}
+
+/** silhouette edges — exact for the rolled ellipse, so at level roll these
+ * are the plain back / belly lines and edge-on they narrow to the girth */
+export const edgeTop = (sec: Section, cs: number): number => sec.C * cs - sec.R;
+export const edgeBot = (sec: Section, cs: number): number => sec.C * cs + sec.R;
+
+/**
+ * Cross-section angle `psi`: 0 at the ventral keel, ±π/2 out on the flanks
+ * (+ is the flank facing the camera at level roll), ±π at the dorsal ridge.
+ * This is the anchor every surface marking uses, which is what makes the
+ * belly patch, mottling, pleats and eye all roll as one body.
+ */
+export const prpAt = (sec: Section, cs: number, psi: number): number =>
+  sec.C * cs + sec.R * cosVisible(psi + sec.D);
+
+/** how squarely that surface point faces the camera: 1 head-on, 0 at the
+ * silhouette edge, negative once it has rolled round the far side */
+export const faceAt = (sec: Section, psi: number): number =>
+  Math.sin(psi + sec.D);
+
+/**
+ * Visible screen extent of the surface band `psi` ∈ centre ± half, clipped
+ * to the silhouette. A band that has rolled fully out of sight collapses to
+ * zero height on the edge it went round, so it simply stops drawing. Writes
+ * the top/bottom offsets into `out.x`/`out.y`.
+ */
+export function bandAt(
+  sec: Section,
+  cs: number,
+  centre: number,
+  half: number,
+  out: Vec2,
+): Vec2 {
+  const w = Math.min(half, 1.5); // keep the arc under a half turn
+  const lo0 = centre - w + sec.D;
+  const lo = lo0 - TAU * Math.floor(lo0 / TAU); // → [0, 2π)
+  const hi = lo + 2 * w;
+  let a = Math.max(lo, 0);
+  let b = Math.min(hi, Math.PI);
+  if (b <= a) {
+    a = Math.max(lo, TAU);
+    b = Math.min(hi, TAU + Math.PI);
+  }
+  const mid = sec.C * cs;
+  if (b <= a) {
+    const e = mid + ((lo + hi) * 0.5 < Math.PI * 1.5 ? -sec.R : sec.R);
+    out.x = e;
+    out.y = e;
+    return out;
+  }
+  out.x = mid + sec.R * Math.cos(b); // top
+  out.y = mid + sec.R * Math.cos(a); // bottom
+  return out;
+}
+
+/**
+ * Hull silhouette outline in world space, wound as one loop: top edge aft,
+ * bottom edge forward, then the head cap. The cap points come last so the
+ * outline never crosses itself at the rostrum — an earlier bug closed the cap
+ * before the top/bottom edges met, which crossed the closing segment and
+ * notched the snout (see `geometry.test.ts` for the self-intersection check).
+ * Spine-frame and cross-section scratch (`p`/`f`/`per`/`sec`) are
+ * caller-provided so this stays allocation-free; the point count written into
+ * `out` is returned.
+ */
+export function buildHullOutline(
+  sp: ReadonlyArray<Vec2>,
+  cum: ReadonlyArray<number>,
+  tan: ReadonlyArray<Vec2>,
+  total: number,
+  last: number,
+  facing: number,
+  scale: number,
+  width: number,
+  juv: number,
+  cs: number,
+  sn: number,
+  steps: number,
+  p: Vec2,
+  f: Vec2,
+  per: Vec2,
+  sec: Section,
+  out: Vec2[],
+): number {
+  let n = 0;
+  const emit = (t: number, fwd: number, prp: number): void => {
+    spineFrameAt(sp, cum, tan, total, last, t, facing, p, f, per);
+    bodyPoint(p, f, per, fwd, prp, scale, out[n++]);
+  };
+  const edge = (t: number, top: boolean): void => {
+    computeSection(t, width, juv, cs, sn, sec);
+    emit(t, 0, top ? edgeTop(sec, cs) : edgeBot(sec, cs));
+  };
+  for (let s = 1; s <= steps; s++) edge((s / steps) * BODY_END, true);
+  for (let s = steps; s >= 1; s--) edge((s / steps) * BODY_END, false);
+  edge(0.01, false);
+  emit(0, 1, 0);
+  edge(0.01, true);
+  return n;
 }

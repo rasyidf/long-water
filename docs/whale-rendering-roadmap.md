@@ -131,6 +131,31 @@ Ordered. Items 1–2 are the ones that could change what shipped.
   function is the remaining step. Also landed: a shared
   [CreatureView](../src/render/CreatureView.ts) seam and a matching
   `ProceduralSquidView` (`SquidRenderer` is now a thin cull-and-delegate System).
+- #27 **further progress** (2026-09-11): the spine-frame math (arc-length
+  table, smoothed-tangent build, and the per-`t` interpolation that bugs #4/#5/#6
+  live in) and the cross-section math (`computeSection`/`edgeTop`/`edgeBot`/
+  `prpAt`/`faceAt`/`bandAt`) are now pure functions in `geometry.ts` —
+  `buildArcLength`, `buildTangents`, `spineFrameAt`, `computeSection`, and
+  friends — with vitest coverage, including a direct test of the bug #4
+  degenerate-segment fallback. `ProceduralWhaleView` now just calls these and
+  keeps its own scratch state (`this.sec`, `this.cum`, `this.tan`) for the
+  zero-allocation guarantee. Verified byte-identical output via
+  `scripts/shot-rolls.mjs` at 0/45/90/135/180° roll before vs. after.
+- #27 **hull outline extracted** (2026-09-11, same session): `bodyPoint`
+  (world-space spine-frame offset, pure counterpart of the view's screen-space
+  `at()`) and `buildHullOutline` (the full `spine → outline points` loop —
+  top edge aft, bottom edge forward, then the head cap) are now pure functions
+  in `geometry.ts`. `geometry.test.ts` has a direct regression test for **bug
+  #1** (hull self-intersection at the rostrum): a proper segment-crossing
+  check over the wound outline, at STEPS 8/20/40 on a straight spine and once
+  on a curved one — the exact test the original bug#1 writeup asked for.
+  `ProceduralWhaleView`'s hull-building block now just calls
+  `buildHullOutline` and maps `cam.sx`/`cam.sy` over the result. Re-verified
+  byte-identical output via `shot-rolls.mjs`, including a `juv=0.8` case.
+  Still outstanding: pectoral/dorsal fin and fluke blade point construction
+  are still interleaved with Pixi curve calls (`moveTo`/`quadraticCurveTo`) in
+  the view — pulling the fin *anchor points* out the same way, while leaving
+  the actual `Graphics` drawing in the view, is what's left of #27.
 
 ---
 
@@ -422,4 +447,4 @@ Use checkboxes above to mark progress. Update status from "Not started" → "In 
 
 For complex items, consider opening a GitHub issue linked back to this doc.
 
-**Last updated:** 2026-09-10 (second pass — see “Next up — whale visuals”)
+**Last updated:** 2026-09-11 (#27 progress — spine-frame + cross-section math extracted, see “Next up — whale visuals”)

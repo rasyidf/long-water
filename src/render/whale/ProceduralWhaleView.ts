@@ -3,16 +3,23 @@ import type { Camera } from "../../core/Camera";
 import { clamp01, lerp, smoothstep, type Vec2 } from "../../core/math";
 import { mixColor } from "../color";
 import {
+  bandAt as sectionBandAt,
+  bodyPoint,
   BODY_END,
-  botHalf,
-  cosVisible,
+  buildArcLength,
+  buildHullOutline,
+  buildTangents,
+  computeSection,
+  edgeBot as sectionEdgeBot,
+  edgeTop as sectionEdgeTop,
+  faceAt as sectionFaceAt,
   hash01,
-  latK,
   mouthPsi,
+  prpAt as sectionPrpAt,
   rollBasis,
   type RollBasis,
-  TAU,
-  topHalf,
+  type Section,
+  spineFrameAt,
 } from "./geometry";
 import type { WhaleDrawOptions, WhaleSection, WhaleView } from "./WhaleView";
 
@@ -67,6 +74,8 @@ export class ProceduralWhaleView implements WhaleView {
   private readonly band: Vec2 = { x: 0, y: 0 };
   /** scratch roll basis, rewritten once per draw */
   private readonly rb: RollBasis = { cs: 1, sn: 0 };
+  /** scratch cross-section, memoised on `t` within a single draw */
+  private readonly sec: Section = { A: 0, C: 0, B: 0, R: 0, D: 0 };
 
   // Countershade palette, rebuilt only when the skin / belly inputs change so a
   // pod sharing one skin colour costs a single `mixColor` sweep per frame.
@@ -121,33 +130,12 @@ export class ProceduralWhaleView implements WhaleView {
 
     // --- arc-length table: `t` tracks real length, not joint index, so head
     //     and peduncle proportions hold if the spine stretches unevenly --------
-    this.cum[0] = 0;
-    let total = 0;
-    for (let i = 1; i <= last; i++) {
-      total += Math.hypot(sp[i].x - sp[i - 1].x, sp[i].y - sp[i - 1].y);
-      this.cum[i] = total;
-    }
+    const total = buildArcLength(sp, this.cum, last);
     if (total < 1e-3) return;
 
     // --- smoothed per-vertex tangents, once per draw. A near-zero segment
     //     keeps its neighbour's tangent instead of snapping the frame to +x. ---
-    for (let i = 0; i <= last; i++) {
-      const a = sp[Math.max(0, i - 1)];
-      const b = sp[Math.min(last, i + 1)];
-      const dx = a.x - b.x;
-      const dy = a.y - b.y;
-      const len = Math.hypot(dx, dy);
-      if (len > 1e-6) {
-        this.tan[i].x = dx / len;
-        this.tan[i].y = dy / len;
-      } else if (i > 0) {
-        this.tan[i].x = this.tan[i - 1].x;
-        this.tan[i].y = this.tan[i - 1].y;
-      } else {
-        this.tan[i].x = 1;
-        this.tan[i].y = 0;
-      }
-    }
+    buildTangents(sp, this.tan, last);
 
     const px = scale * cam.scale;
     // smooth LOD/visibility ramps so nothing pops as the camera scale drifts
@@ -185,33 +173,26 @@ export class ProceduralWhaleView implements WhaleView {
 
     // --- spine frame + point projection, writing into pre-allocated vectors ---
     const frameAt = (t: number): void => {
-      const target = clamp01(t) * total;
-      let i = 0;
-      while (i < last - 1 && this.cum[i + 1] < target) i++;
-      const seg = this.cum[i + 1] - this.cum[i] || 1;
-      const k = clamp01((target - this.cum[i]) / seg);
-      this.p.x = sp[i].x + (sp[i + 1].x - sp[i].x) * k;
-      this.p.y = sp[i].y + (sp[i + 1].y - sp[i].y) * k;
-      // interpolate the smoothed vertex tangents, then renormalise, so the
-      // outline offset turns continuously through each spine joint (no kinks)
-      const fx = this.tan[i].x + (this.tan[i + 1].x - this.tan[i].x) * k;
-      const fy = this.tan[i].y + (this.tan[i + 1].y - this.tan[i].y) * k;
-      const fl = Math.hypot(fx, fy);
-      if (fl > 1e-6) {
-        this.f.x = fx / fl;
-        this.f.y = fy / fl;
-      }
-      this.per.x = -this.f.y * facing;
-      this.per.y = this.f.x * facing;
+      spineFrameAt(
+        sp,
+        this.cum,
+        this.tan,
+        total,
+        last,
+        t,
+        facing,
+        this.p,
+        this.f,
+        this.per,
+      );
     };
 
     /** screen-space point `fwd` along the spine tangent and `prp` off it */
     const at = (t: number, fwd: number, prp: number, out: Vec2): Vec2 => {
       frameAt(t);
-      const wx = this.p.x + (this.f.x * fwd + this.per.x * prp) * scale;
-      const wy = this.p.y + (this.f.y * fwd + this.per.y * prp) * scale;
-      out.x = cam.sx(wx);
-      out.y = cam.sy(wy);
+      bodyPoint(this.p, this.f, this.per, fwd, prp, scale, out);
+      out.x = cam.sx(out.x);
+      out.y = cam.sy(out.y);
       return out;
     };
 
@@ -233,32 +214,21 @@ export class ProceduralWhaleView implements WhaleView {
     // Callers hit the same `t` two or three times in a row (top edge, bottom
     // edge, band centre), so one slot of memo removes most of the profile work.
     let mt = NaN;
-    let mA = 0; // vertical semi-axis
-    let mC = 0; // ventral offset of the section centre from the spine
-    let mB = 0; // lateral semi-axis
-    let mR = 0; // projected half-extent once rolled
-    let mD = 0; // cross-section angle that has rolled onto the near edge
     const sect = (t: number): void => {
       if (t === mt) return;
       mt = t;
-      const d = topHalf(t, width, juv);
-      const v = botHalf(t, width, juv);
-      mA = (d + v) * 0.5;
-      mC = (v - d) * 0.5;
-      mB = mA * latK(t);
-      mR = Math.hypot(mA * cs, mB * sn);
-      mD = Math.atan2(mB * sn, mA * cs);
+      computeSection(t, width, juv, cs, sn, this.sec);
     };
 
     /** silhouette edges — exact for the rolled ellipse, so at level roll these
      * are the plain back / belly lines and edge-on they narrow to the girth */
     const edgeTop = (t: number): number => {
       sect(t);
-      return mC * cs - mR;
+      return sectionEdgeTop(this.sec, cs);
     };
     const edgeBot = (t: number): number => {
       sect(t);
-      return mC * cs + mR;
+      return sectionEdgeBot(this.sec, cs);
     };
 
     /**
@@ -269,13 +239,13 @@ export class ProceduralWhaleView implements WhaleView {
      */
     const prpAt = (t: number, psi: number): number => {
       sect(t);
-      return mC * cs + mR * cosVisible(psi + mD);
+      return sectionPrpAt(this.sec, cs, psi);
     };
     /** how squarely that surface point faces the camera: 1 head-on, 0 at the
      * silhouette edge, negative once it has rolled round the far side */
     const faceAt = (t: number, psi: number): number => {
       sect(t);
-      return Math.sin(psi + mD);
+      return sectionFaceAt(this.sec, psi);
     };
 
     /**
@@ -285,25 +255,7 @@ export class ProceduralWhaleView implements WhaleView {
      */
     const bandAt = (t: number, centre: number, half: number): void => {
       sect(t);
-      const w = Math.min(half, 1.5); // keep the arc under a half turn
-      const lo0 = centre - w + mD;
-      const lo = lo0 - TAU * Math.floor(lo0 / TAU); // → [0, 2π)
-      const hi = lo + 2 * w;
-      let a = Math.max(lo, 0);
-      let b = Math.min(hi, Math.PI);
-      if (b <= a) {
-        a = Math.max(lo, TAU);
-        b = Math.min(hi, TAU + Math.PI);
-      }
-      const mid = mC * cs;
-      if (b <= a) {
-        const e = mid + ((lo + hi) * 0.5 < Math.PI * 1.5 ? -mR : mR);
-        this.band.x = e;
-        this.band.y = e;
-        return;
-      }
-      this.band.x = mid + mR * Math.cos(b); // top
-      this.band.y = mid + mR * Math.cos(a); // bottom
+      sectionBandAt(this.sec, cs, centre, half, this.band);
     };
 
     // shared band extent for the shading layers below
@@ -371,14 +323,14 @@ export class ProceduralWhaleView implements WhaleView {
       const pg = pick(near ? "nearPectoral" : "farPectoral");
       const t = 0.27;
       sect(t);
-      const rootV = mC + mA * 0.1; // low on the flank, a touch below the spine
-      const rootL = side * mB * 0.9;
-      const outL = side * (mB * 0.9 + 32 * featK); // lateral reach of the tip
+      const rootV = this.sec.C + this.sec.A * 0.1; // low on the flank, a touch below the spine
+      const rootL = side * this.sec.B * 0.9;
+      const outL = side * (this.sec.B * 0.9 + 32 * featK); // lateral reach of the tip
       const drop = 22 * featK; // and how far it hangs below the root
       const aft = 38 * featK; // how far back it trails
       // a hair of perspective, so the near flipper isn't a pixel-exact copy of
       // the far one when the pair overlaps at level roll
-      const q = 1 + 0.05 * (depth3(rootV, rootL) / Math.max(1, mA));
+      const q = 1 + 0.05 * (depth3(rootV, rootL) / Math.max(1, this.sec.A));
 
       /** a point on the blade: `u` out along the span, `fwd` its chord offset.
        * Keeping the span and the chord as separate axes is what lets the
@@ -425,9 +377,9 @@ export class ProceduralWhaleView implements WhaleView {
       const dg = pick(near ? "dorsal" : "farDorsal");
       const t = 0.74;
       sect(t);
-      const h = (mA * 0.5 + 3 * featK) * (1 - 0.22 * juv);
+      const h = (this.sec.A * 0.5 + 3 * featK) * (1 - 0.22 * juv);
       // roots a hair inside the back, so the blade grows out of the body
-      const base = (mC - mA) * 0.94;
+      const base = (this.sec.C - this.sec.A) * 0.94;
       const frX = at3(t + 0.035, 0, base, 0, this.w0).x;
       const frY = this.w0.y;
       const bkX = at3(t - 0.055, 0, base, 0, this.w0).x;
@@ -526,23 +478,39 @@ export class ProceduralWhaleView implements WhaleView {
     // ---------- Main body hull ----------
     // Wound as one loop: top edge aft, bottom edge forward, then the head cap.
     // (The cap points come last so the outline never crosses itself at the
-    // rostrum, which would confuse earcut and notch the snout.)
+    // rostrum, which would confuse earcut and notch the snout — see
+    // `geometry.buildHullOutline` and its self-intersection test.)
     {
       const hg = pick("hull");
-      let n = 0;
-      for (let s = 1; s <= STEPS; s++) {
-        const t = (s / STEPS) * BODY_END;
-        at(t, 0, edgeTop(t), this.outline[n++]);
+      const n = buildHullOutline(
+        sp,
+        this.cum,
+        this.tan,
+        total,
+        last,
+        facing,
+        scale,
+        width,
+        juv,
+        cs,
+        sn,
+        STEPS,
+        this.p,
+        this.f,
+        this.per,
+        this.sec,
+        this.outline,
+      );
+      for (let i = 0; i < n; i++) {
+        this.outline[i].x = cam.sx(this.outline[i].x);
+        this.outline[i].y = cam.sy(this.outline[i].y);
       }
-      for (let s = STEPS; s >= 1; s--) {
-        const t = (s / STEPS) * BODY_END;
-        at(t, 0, edgeBot(t), this.outline[n++]);
-      }
-      at(0.01, 0, edgeBot(0.01), this.outline[n++]);
-      at(0, 1, 0, this.outline[n++]);
-      at(0.01, 0, edgeTop(0.01), this.outline[n++]);
       drawBlob(hg, this.outline, n);
       hg.fill({ color: skin, alpha });
+      // buildHullOutline wrote straight into this.sec, bypassing sect()'s own
+      // memo — invalidate it so the next sect(t) call can't skip a recompute
+      // on a stale match.
+      mt = NaN;
     }
 
     // ---------- Pale belly countershading ----------
