@@ -23,7 +23,6 @@ export class ParticleSystem implements System {
           splash: e.splash,
         });
     });
-    ctx.bus.on("game:restart", () => (ctx.particles.bubbles.length = 0));
   }
 
   update(dt: number, ctx: GameContext): void {

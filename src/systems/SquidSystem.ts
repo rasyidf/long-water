@@ -26,13 +26,6 @@ export class SquidSystem implements System {
 
   private readonly brain = new SquidBrain();
 
-  init(ctx: GameContext): void {
-    ctx.bus.on("game:restart", () => {
-      ctx.squid.rest();
-      ctx.whale.grip = 0;
-    });
-  }
-
   update(dt: number, ctx: GameContext): void {
     const { squid, whale, world, camera } = ctx;
 

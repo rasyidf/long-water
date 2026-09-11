@@ -9,16 +9,23 @@
 
 import type { Vec2 } from "./math";
 
+/** what a `score:award` was for */
+export type ScoreKind =
+  | "trick"
+  | "feast"
+  | "podJoin"
+  | "chorus"
+  | "closePass"
+  | "squidDodge"
+  | "squidShaken"
+  | "squidPod";
+
 export interface GameEvents {
-  /** any key pressed while the title/end card is up */
+  /** the player's first breath: New Game / Continue on the title screen */
   "game:start": void;
   "game:over": { won: boolean };
-  "game:restart": void;
   "game:pause": void;
   "game:resume": void;
-  /** persist / rehydrate the run via localStorage */
-  "game:save": void;
-  "game:load": void;
   /** master audio volume, 0..1 */
   "audio:volume": number;
 
@@ -63,10 +70,20 @@ export interface GameEvents {
   "krill:fed": { swarmsFed: number };
 
   /** points banked — a trick, a feed, or a close pass. `mult` is the flow
-   * multiplier already folded into `points`. */
-  "score:award": { points: number; label: string; mult: number; pos?: Vec2 };
+   * multiplier already folded into `points`; `kind` names what earned it
+   * independent of the localized `label`. */
+  "score:award": {
+    points: number;
+    label: string;
+    mult: number;
+    kind: ScoreKind;
+    pos?: Vec2;
+  };
   /** a one-shot route / pod / depth milestone was reached */
   "score:milestone": { id: string; label: string; points: number };
+
+  /** a creature or trophy went into the almanac for the first time */
+  "almanac:unlocked": { kind: "creature" | "trophy"; id: string };
 
   /** a squid latched onto the whale */
   "squid:grab": { pos: Vec2 };

@@ -20,10 +20,6 @@ export class CameraSystem implements System {
 
     bus.on("fx:shake", (amt) => this.rig.addTrauma(amt));
     bus.on("game:start", () => this.rig.establish());
-    bus.on("game:restart", () => {
-      clock.timeScale = 1;
-      this.rig.reset(ctx);
-    });
     bus.on("game:over", () => (clock.timeScale = 1));
 
     bus.on("whale:breach", ({ flips, up }) =>

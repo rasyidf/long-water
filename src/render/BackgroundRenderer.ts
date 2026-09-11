@@ -16,6 +16,9 @@ export class BackgroundRenderer implements System {
   readonly name = "render:background";
   private waterTex: Record<string, Texture> = {};
   private ocean = new OceanView();
+  /** every canvas-backed texture this instance created, so a rebuild's fresh
+   *  instance doesn't leak the old one's GPU upload (see `Game`'s run rebuild) */
+  private owned: Texture[] = [];
 
   init(ctx: GameContext): void {
     for (const z of zones()) {
@@ -34,6 +37,7 @@ export class BackgroundRenderer implements System {
         8,
         512,
       );
+      this.owned.push(this.waterTex[z.id]);
     }
     const L = ctx.layers;
     L.vignette.texture = gradientTexture(
@@ -46,6 +50,7 @@ export class BackgroundRenderer implements System {
       512,
       true,
     );
+    this.owned.push(L.vignette.texture);
     // surface → deep darkness, sampled in world space each frame. Stops are
     // eased so the slope approaches zero at the bottom: without that the
     // gradient-then-flat-fill join reads as a hard horizontal band (a Mach
@@ -63,6 +68,15 @@ export class BackgroundRenderer implements System {
       8,
       512,
     );
+    this.owned.push(L.darkGrad.texture);
+  }
+
+  /** a run rebuild tore this instance's layers down — release its own canvas
+   *  textures (never the engine's shared ones, which this renderer never
+   *  touches) */
+  dispose(): void {
+    for (const tex of this.owned) tex.destroy(true);
+    this.owned.length = 0;
   }
 
   render(ctx: GameContext): void {

@@ -3,37 +3,26 @@
  * save, load, options, exit). Pause is expressed as `game:pause` / `game:resume`
  * on the bus; `Game` halts the simulation while paused, renderers keep drawing
  * the frozen frame.
+ *
+ * One instance lives for the whole page: its DOM listeners are wired once in
+ * the constructor, and `init` re-binds it to each new run's context. Restart,
+ * load, options and exit are handed back to `Game` through `PauseHooks` — they
+ * rebuild the run in place rather than reloading the page.
  */
 import type { GameContext } from "../core/GameContext";
 import type { System } from "../core/System";
 import { t } from "../i18n";
-import { hasSave, load, save } from "../state/Snapshot";
+import { save, saveMeta } from "../state/Snapshot";
 
-const OPTS_KEY = "long-water:opts";
 const $ = (id: string) => document.getElementById(id)!;
 
-interface Opts {
-  volume: number;
-}
-function readOpts(): Opts {
-  try {
-    const raw = localStorage.getItem(OPTS_KEY);
-    if (raw) {
-      const o = JSON.parse(raw) as Partial<Opts>;
-      if (typeof o.volume === "number")
-        return { volume: Math.max(0, Math.min(1, o.volume)) };
-    }
-  } catch {
-    /* fall through to default */
-  }
-  return { volume: 1 };
-}
-function writeOpts(o: Opts): void {
-  try {
-    localStorage.setItem(OPTS_KEY, JSON.stringify(o));
-  } catch {
-    /* storage unavailable — options just won't persist */
-  }
+export interface PauseHooks {
+  restart(): void;
+  /** rehydrate the current world from the save slot; false if it didn't match */
+  load(): boolean;
+  exit(): void;
+  /** open the shared options panel; call `onClose` when it shuts */
+  options(onClose: () => void): void;
 }
 
 export class PauseMenu implements System {
@@ -41,35 +30,31 @@ export class PauseMenu implements System {
 
   private menu = $("menu");
   private note = $("menuNote");
-  private optionsPanel = $("menuOptions");
-  private volume = $("optVolume") as HTMLInputElement;
   private paused = false;
-  private ctx!: GameContext;
+  private ctx: GameContext | null = null;
   private noteTimer = 0;
 
-  init(ctx: GameContext): void {
-    this.ctx = ctx;
+  constructor(private readonly hooks: PauseHooks) {
     this.localize();
-
-    const opts = readOpts();
-    this.volume.value = String(Math.round(opts.volume * 100));
-    ctx.bus.emit("audio:volume", opts.volume);
-    this.volume.addEventListener("input", () => {
-      const v = Number(this.volume.value) / 100;
-      ctx.bus.emit("audio:volume", v);
-      writeOpts({ volume: v });
-    });
-
     this.menu.addEventListener("click", (e) => {
       const btn = (e.target as HTMLElement).closest("button");
       if (btn?.dataset.act) this.act(btn.dataset.act);
     });
+  }
 
+  init(ctx: GameContext): void {
+    this.ctx = ctx;
     ctx.bus.on("game:pause", () => this.open());
     ctx.bus.on("game:resume", () => this.close());
     ctx.bus.on("game:over", () => {
       if (this.paused) ctx.bus.emit("game:resume");
     });
+  }
+
+  /** the run is being torn down — never leave the overlay up over the next */
+  dispose(): void {
+    this.close();
+    this.ctx = null;
   }
 
   /** fill the static `#menu` DOM from the string table */
@@ -80,44 +65,45 @@ export class PauseMenu implements System {
     )) {
       btn.textContent = t(`menu.${btn.dataset.act}`);
     }
-    const volumeLabel = this.optionsPanel.querySelector("label")?.firstChild;
-    if (volumeLabel) volumeLabel.textContent = t("menu.volume");
   }
 
   /** called from Input on Escape */
   toggle(): void {
-    const { clock, whale } = this.ctx;
+    if (!this.ctx) return;
+    const { clock, whale, bus } = this.ctx;
     if (!clock.started || whale.done || !whale.alive) return;
-    this.ctx.bus.emit(this.paused ? "game:resume" : "game:pause");
+    bus.emit(this.paused ? "game:resume" : "game:pause");
   }
 
   private act(action: string): void {
-    const { bus } = this.ctx;
+    const ctx = this.ctx;
+    if (!ctx) return;
     switch (action) {
       case "resume":
-        bus.emit("game:resume");
+        ctx.bus.emit("game:resume");
         break;
       case "restart":
-        location.reload();
+        this.hooks.restart();
         break;
       case "save":
-        this.flash(
-          save(this.ctx) ? t("menu.note.saved") : t("menu.note.saveFail"),
-        );
+        this.flash(save(ctx) ? t("menu.note.saved") : t("menu.note.saveFail"));
         break;
       case "load":
-        if (!hasSave()) this.flash(t("menu.note.noSave"));
-        else if (load(this.ctx)) {
+        if (!saveMeta()) this.flash(t("menu.note.noSave"));
+        else if (this.hooks.load()) {
           this.flash(t("menu.note.loaded"));
-          bus.emit("game:resume");
+          ctx.bus.emit("game:resume");
         } else this.flash(t("menu.note.wrongWorld"));
         break;
       case "options":
-        this.optionsPanel.hidden = !this.optionsPanel.hidden;
+        this.hooks.options(() =>
+          this.menu
+            .querySelector<HTMLButtonElement>('[data-act="options"]')
+            ?.focus(),
+        );
         break;
       case "exit":
-        // drop any ?seed= override and return to the default-world title
-        location.href = location.pathname;
+        this.hooks.exit();
         break;
     }
   }
@@ -131,8 +117,9 @@ export class PauseMenu implements System {
   private close(): void {
     this.paused = false;
     this.menu.hidden = true;
-    this.optionsPanel.hidden = true;
     this.note.classList.remove("show");
+    if (this.menu.contains(document.activeElement))
+      (document.activeElement as HTMLElement).blur();
   }
 
   private flash(msg: string): void {

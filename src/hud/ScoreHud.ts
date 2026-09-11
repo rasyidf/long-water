@@ -20,15 +20,6 @@ export class ScoreHud implements System {
   private seq = -1;
   private popUntil = 0;
 
-  init(ctx: GameContext): void {
-    ctx.bus.on("game:restart", () => {
-      this.shown = 0;
-      this.seq = ctx.score.awardSeq;
-      this.numEl.textContent = "0";
-      this.popEl.classList.remove("show");
-    });
-  }
-
   render(ctx: GameContext): void {
     const { score, clock } = ctx;
 

@@ -3,16 +3,13 @@ export class Input {
   private keys: Record<string, boolean> = {};
   /** codes whose keydown edge landed since the last frameEnd() */
   private edges = new Set<string>();
-  private onFirstKey?: () => void;
   private onRestart?: () => void;
   private onPause?: () => void;
 
-  attach(opts: {
-    onFirstKey: () => void;
-    onRestart: () => void;
-    onPause: () => void;
-  }): void {
-    this.onFirstKey = opts.onFirstKey;
+  /** `onRestart` fires on every `R` keydown — callers (title/end screens) gate
+   *  whether that means anything right now. `onPause` fires on every `Escape`
+   *  keydown; the front-end and pause menu decide what it closes. */
+  attach(opts: { onRestart: () => void; onPause: () => void }): void {
     this.onRestart = opts.onRestart;
     this.onPause = opts.onPause;
     addEventListener("keydown", this.handleDown);
@@ -29,10 +26,12 @@ export class Input {
       this.onPause?.();
       return;
     }
-    this.onFirstKey?.();
     if (!this.keys[e.code] && !e.repeat) this.edges.add(e.code);
     this.keys[e.code] = true;
-    if (e.code === "Space") e.preventDefault();
+    // a focused menu button owns Space as its own click — don't eat the
+    // keystroke, or Space can never activate "New Game" et al.
+    if (e.code === "Space" && document.activeElement === document.body)
+      e.preventDefault();
     if (e.code === "KeyR") this.onRestart?.();
   };
 

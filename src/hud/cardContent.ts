@@ -1,7 +1,8 @@
 /**
- * Builders for the full-screen cards. A `CardContent` is plain data; `Cards`
- * renders it. Add a card by writing another builder here and calling
- * `cards.show(myCard())` from wherever triggers it.
+ * Builds the end-of-run card content. A `CardContent` is plain data;
+ * `menu/FrontEnd.ts`'s end screen renders it. The title screen is its own
+ * static markup (`menu/FrontEnd.ts`'s `localize`), not built from a card —
+ * it's a real menu, not a result to report.
  */
 import { kmCovered, legId, legLengthKm } from "../config/route";
 import type { GameContext } from "../core/GameContext";
@@ -12,24 +13,6 @@ export interface CardContent {
   h1: string;
   /** body paragraph, innerHTML */
   body: string;
-  /** the ".start" prompt line; omitted → left as-is */
-  start?: string;
-  /** key rows as `[label, description]`; omitted → the ".keys" block is hidden */
-  keys?: [string, string][];
-}
-
-export function titleCard(): CardContent {
-  return {
-    h1: t("card.title.h1"),
-    body: t("card.title.body"),
-    start: t("card.title.start"),
-    keys: [
-      ["W A S D", t("card.title.keys.wasd")],
-      ["Shift", t("card.title.keys.shift")],
-      ["Space", t("card.title.keys.space")],
-      ["Esc", t("card.title.keys.esc")],
-    ],
-  };
 }
 
 export function endCard(ctx: GameContext, won: boolean): CardContent {
@@ -61,6 +44,5 @@ export function endCard(ctx: GameContext, won: boolean): CardContent {
       distance,
       stats: stat,
     }),
-    start: t("card.end.restart"),
   };
 }

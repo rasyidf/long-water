@@ -63,11 +63,42 @@ interface SaveData {
   ships: Array<{ x: number }>;
 }
 
-export function hasSave(): boolean {
+/** What the title screen needs to offer Continue: which world to rebuild the
+ *  save against, and a one-line summary. */
+export interface SaveMeta {
+  level: string;
+  seed: number;
+  savedAt: number;
+  score: number;
+  /** whale world-x, for the distance readout */
+  x: number;
+}
+
+/** the current slot's header, or null if there is none / it's from an older
+ *  schema / it holds a run that already ended */
+export function saveMeta(): SaveMeta | null {
   try {
-    return !!localStorage.getItem(KEY);
+    const raw = localStorage.getItem(KEY);
+    if (!raw) return null;
+    const d = JSON.parse(raw) as SaveData;
+    if (d.v !== VERSION || !d.whale.alive || d.whale.done) return null;
+    return {
+      level: d.level,
+      seed: d.seed,
+      savedAt: d.savedAt,
+      score: d.score.total,
+      x: d.whale.body.x,
+    };
   } catch {
-    return false;
+    return null;
+  }
+}
+
+export function clearSave(): void {
+  try {
+    localStorage.removeItem(KEY);
+  } catch {
+    /* nothing to clear */
   }
 }
 

@@ -9,10 +9,6 @@ export class VitalsSystem implements System {
   readonly name = "vitals";
   private lowAirWarned = false;
 
-  init(ctx: GameContext): void {
-    ctx.bus.on("game:restart", () => (this.lowAirWarned = false));
-  }
-
   update(dt: number, ctx: GameContext): void {
     const { whale, input, pod, bus, world } = ctx;
     if (whale.done || !whale.alive) return;

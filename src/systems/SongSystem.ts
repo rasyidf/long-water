@@ -13,10 +13,6 @@ export class SongSystem implements System {
   private openingSung = false;
 
   init(ctx: GameContext): void {
-    ctx.bus.on("game:restart", () => {
-      this.lastPlayerSing = -9;
-      this.openingSung = false;
-    });
     // anyone can request a ring; near-ship attenuation is applied here
     ctx.bus.on("song:emitted", (p) => {
       let maxR = 2800 * p.strength;

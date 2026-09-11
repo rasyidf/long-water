@@ -22,6 +22,7 @@ import {
   POD_MILESTONES,
   POINTS,
 } from "../config/scoring";
+import type { ScoreKind } from "../core/EventBus";
 import type { GameContext } from "../core/GameContext";
 import type { Vec2 } from "../core/math";
 import type { System } from "../core/System";
@@ -41,11 +42,11 @@ export class ScoreSystem implements System {
     bus.on("whale:reentry", (r) => this.scoreTrick(ctx, r));
 
     bus.on("krill:fed", () =>
-      this.award(ctx, POINTS.krillFeast, t("trick.feast")),
+      this.award(ctx, POINTS.krillFeast, t("trick.feast"), "feast"),
     );
 
     bus.on("pod:joined", ({ count }) => {
-      this.award(ctx, POINTS.podJoin, t("trick.podJoin"));
+      this.award(ctx, POINTS.podJoin, t("trick.podJoin"), "podJoin");
       for (const [n, pts] of POD_MILESTONES) {
         if (count >= n) {
           this.milestone(ctx, `pod-${n}`, pts, t(`milestone.pod.${n}`));
@@ -54,12 +55,18 @@ export class ScoreSystem implements System {
     });
 
     bus.on("pod:chorus", () =>
-      this.award(ctx, POINTS.chorus, t("trick.chorus")),
+      this.award(ctx, POINTS.chorus, t("trick.chorus"), "chorus"),
     );
 
     bus.on("squid:evaded", ({ closeness, pos }) => {
       const scale = 0.3 + 0.7 * closeness;
-      this.award(ctx, POINTS.squidDodge * scale, t("trick.squidDodge"), pos);
+      this.award(
+        ctx,
+        POINTS.squidDodge * scale,
+        t("trick.squidDodge"),
+        "squidDodge",
+        pos,
+      );
     });
 
     bus.on("squid:struck", ({ byPod, pos }) => {
@@ -67,6 +74,7 @@ export class ScoreSystem implements System {
         ctx,
         byPod ? POINTS.squidPodDefense : POINTS.squidShaken,
         t(byPod ? "trick.squidPod" : "trick.squidShaken"),
+        byPod ? "squidPod" : "squidShaken",
         pos,
       );
     });
@@ -76,12 +84,6 @@ export class ScoreSystem implements System {
       ctx.score.comboStep = 0;
       ctx.score.comboMul = 1;
       ctx.score.comboUntil = 0;
-    });
-
-    bus.on("game:restart", () => {
-      ctx.score.reset();
-      this.passing.clear();
-      this.lastKm = 0;
     });
   }
 
@@ -129,7 +131,7 @@ export class ScoreSystem implements System {
       if (inWindow && !this.passing.has(i)) {
         this.passing.add(i);
         if (whale.speed > CLOSE_PASS_SPEED) {
-          this.award(ctx, POINTS.closePass, t("trick.closePass"), {
+          this.award(ctx, POINTS.closePass, t("trick.closePass"), "closePass", {
             x: whale.x,
             y: Math.max(0, whale.y),
           });
@@ -180,7 +182,7 @@ export class ScoreSystem implements System {
       }
     }
 
-    this.award(ctx, Math.round(pts), parts.join(" · "), r.pos);
+    this.award(ctx, Math.round(pts), parts.join(" · "), "trick", r.pos);
   }
 
   /** advance the flow chain and bank `base` points times the multiplier */
@@ -188,6 +190,7 @@ export class ScoreSystem implements System {
     ctx: GameContext,
     base: number,
     label: string,
+    kind: ScoreKind,
     pos?: Vec2,
   ): void {
     const { score, clock, bus } = ctx;
@@ -207,7 +210,13 @@ export class ScoreSystem implements System {
     score.awardSeq++;
     if (!score.best || points > score.best.points) score.best = aw;
 
-    bus.emit("score:award", { points, label, mult: score.comboMul, pos });
+    bus.emit("score:award", {
+      points,
+      label,
+      mult: score.comboMul,
+      kind,
+      pos,
+    });
   }
 
   /** bank a one-shot milestone (no flow multiplier, no `best` contention) */

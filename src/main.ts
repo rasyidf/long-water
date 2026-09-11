@@ -41,6 +41,4 @@ new Game()
     console.error(err);
     splash?.classList.add("failed");
     if (splashWord) splashWord.textContent = t("boot.nowebgl");
-    const line = document.getElementById("startLine");
-    if (line) line.textContent = t("boot.nowebgl");
   });

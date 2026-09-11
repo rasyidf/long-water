@@ -30,6 +30,14 @@
       </div>
     </div>
 
+    <!-- Fade-to-black cover for an in-place world rebuild (New Game / Continue
+         onto a different save / Restart / Exit to title). `menu/FrontEnd.ts`
+         drives it; the game never reloads the page after the initial boot. -->
+    <div class="curtain" id="curtain"></div>
+
+    <!-- ============================ gameplay HUD ============================
+         Hidden (via body[data-screen]) whenever the title or end screen is up;
+         the world keeps rendering a frozen frame behind them either way. -->
     <div class="hud topbar">
       <div class="tb-left">
         <svg viewBox="0 0 30 20" class="wave-mark" aria-hidden="true">
@@ -73,7 +81,6 @@
     </div>
 
     <div class="hud instruments">
-       
       <div class="gauges">
         <div class="meter">
           <div class="label"><span>Breath</span><span class="pct" id="breathNum">100%</span></div>
@@ -95,6 +102,10 @@
     <div class="hud trickpop" id="trickpop"></div>
     <div class="hud ruler"><canvas id="ruler"></canvas></div>
 
+    <!-- opening controls strip: shown a few seconds after a fresh New Game,
+         replaces the old title-card ".keys" list -->
+    <div class="hud keyhint" id="keyhint"></div>
+
     <div class="menu" id="menu" hidden>
       <h2>Paused</h2>
       <button type="button" data-act="resume">Resume</button>
@@ -103,33 +114,93 @@
       <button type="button" data-act="load">Load</button>
       <button type="button" data-act="options">Options</button>
       <button type="button" data-act="exit">Exit to title</button>
-      <div class="options" id="menuOptions" hidden>
-        <label>
-          Volume
-          <input type="range" id="optVolume" min="0" max="100" step="1" value="100" />
-        </label>
-      </div>
       <div class="note" id="menuNote"></div>
     </div>
 
-    <!-- Fallback copy for no-JS / boot failure. src/i18n/en.ts is the source of
-         truth; Cards re-renders this from the string table on init. -->
-    <div class="card" id="card">
-      <h1>Long Water<br /><em>one leg of the migration</em></h1>
-      <p>
-        You are a blue whale, twenty-eight metres, moving south. Sunlight gives out
-        around a hundred and eighty metres and the krill lives below that line, so you
-        sing to find it. Singing costs air, and air is at the surface. Whales that
-        answer you will fall in behind, and a pod sings further than one whale can.
-      </p>
-      <div class="keys">
-        <b>W A S D</b><span>swim, with the momentum of a very large animal</span>
-        <b>Shift</b><span>hold to surge and build speed; tap for a tail-kick burst</span>
-        <b>Space</b><span>sing, and call the pod in with you</span>
-        <b>Esc</b><span>pause</span>
-      </div>
-      <div class="start" id="startLine">Press any key to take a breath</div>
+    <!-- ============================ front end ============================ -->
+
+    <!-- title screen: New Game / Continue / Multiplayer (disabled) / Options,
+         a trophy shelf, and the almanac entry point -->
+    <div class="screen title" id="title">
+      <img src="/logo.png" alt="Long Water" class="title-logo" />
+      <p class="title-tag">one leg of the migration</p>
+
+      <nav class="title-menu">
+        <button type="button" class="tm-btn" data-act="new">
+          <span class="lbl">New Game</span>
+        </button>
+        <button type="button" class="tm-btn" data-act="continue">
+          <span class="lbl">Continue</span><small></small>
+        </button>
+        <button type="button" class="tm-btn" data-act="multiplayer" disabled>
+          <span class="lbl">Multiplayer</span><small></small>
+        </button>
+        <button type="button" class="tm-btn" data-act="options">
+          <span class="lbl">Options</span>
+        </button>
+        <button type="button" class="tm-btn" data-act="almanac">
+          <span class="lbl">Almanac</span><small></small>
+        </button>
+      </nav>
+
+      <button
+        type="button"
+        class="title-shelf"
+        data-act="trophies"
+        aria-label="Trophies"
+      ></button>
+      <p class="title-records"></p>
+      <p class="title-note" id="titleNote"></p>
     </div>
+
+    <!-- end-of-run screen: result + tally, then back to title or swim again -->
+    <div class="screen end" id="end">
+      <h1></h1>
+      <p></p>
+      <div class="end-finds" hidden>
+        <h2></h2>
+        <ul></ul>
+      </div>
+      <div class="end-actions">
+        <button type="button" data-act="again"><span class="lbl"></span></button>
+        <button type="button" data-act="title"><span class="lbl"></span></button>
+      </div>
+    </div>
+
+    <!-- shared options panel: opened from the title or the pause menu -->
+    <div class="panel options" id="options">
+      <h2></h2>
+      <div class="opt-row opt-volume">
+        <span></span>
+        <input type="range" id="optVolume" min="0" max="100" step="1" value="100" />
+        <b id="optVolumeNum">100%</b>
+      </div>
+      <h3></h3>
+      <div class="keys"></div>
+      <div class="opt-actions">
+        <button type="button" class="opt-reset" data-act="reset" hidden></button>
+        <button type="button" class="opt-back" data-act="back"></button>
+      </div>
+    </div>
+
+    <!-- almanac: a field guide (Creatures) and a case of feats (Trophies) -->
+    <div class="panel almanac" id="almanac">
+      <div class="alm-head">
+        <h2></h2>
+        <button type="button" class="alm-back" data-act="back"></button>
+      </div>
+      <div class="alm-tabs">
+        <button type="button" data-tab="creatures" aria-selected="true"></button>
+        <button type="button" data-tab="trophies" aria-selected="false"></button>
+      </div>
+      <div class="alm-body">
+        <div class="alm-grid" id="almGrid"></div>
+        <div class="alm-detail" id="almDetail"></div>
+      </div>
+    </div>
+
+    <!-- "new in the almanac" popup, queued so overlapping finds don't clobber -->
+    <div class="toast" id="toast"></div>
 
     <script type="module" src="/src/main.ts"></script>
   </body>

@@ -37,18 +37,6 @@ export class WhaleSystem implements System {
 
   constructor(private readonly simulate = true) {}
 
-  init(ctx: GameContext): void {
-    ctx.bus.on("game:restart", () => {
-      this.playerBrain.reset();
-      this.airAt = -1;
-      this.airTurns = 0;
-      const b = ctx.whale.body;
-      b.roll = 0;
-      b.rollVel = 0;
-      b.rollBlend = 0;
-    });
-  }
-
   update(dt: number, ctx: GameContext): void {
     const { whale, pod } = ctx;
 

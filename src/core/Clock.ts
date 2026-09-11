@@ -22,6 +22,14 @@ export class Clock {
     if (this.startT < 0) this.startT = this.t;
   }
 
+  /** a fresh run reusing the same clock: `t` keeps ticking (it's wall-clock
+   *  since page load, and other page-lifetime systems may read it), but
+   *  `sinceStart`/`started` and any cinematic slow-mo reset */
+  reset(): void {
+    this.startT = -1;
+    this.timeScale = 1;
+  }
+
   get started(): boolean {
     return this.startT >= 0;
   }
