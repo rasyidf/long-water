@@ -262,6 +262,24 @@ export const en: Record<string, string> = {
     "Thin, whip-like branches that bend with the current rather than " +
     "fight it, reaching higher off the reef than most of its neighbours.",
 
+  "almanac.anemone.name": "Anemone",
+  "almanac.anemone.size": "a squat column, crowned with tentacles",
+  "almanac.anemone.found": "The shallow shelf reef",
+  "almanac.anemone.temper": "Stationary — every tentacle on its own time",
+  "almanac.anemone.body":
+    "Not a coral at all but a single soft animal: a stout column topped with " +
+    "a ring of tentacles that each wave to their own rhythm, closing over " +
+    "whatever the current delivers.",
+
+  "almanac.table-coral.name": "Table Coral",
+  "almanac.table-coral.size": "a broad plate on a short stem",
+  "almanac.table-coral.found": "The shallow shelf reef",
+  "almanac.table-coral.temper": "Stationary — reaching for the light",
+  "almanac.table-coral.body":
+    "A flat plate spread wide on a single stem to catch as much sun as the " +
+    "reef allows, its rim scalloped and its underside kept in permanent " +
+    "shade for whatever shelters there.",
+
   // trophies
   "trophy.unearned": "Not yet earned.",
   "trophy.earned": "Earned {date}.",

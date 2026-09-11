@@ -26,6 +26,8 @@ export const CORAL_IDS = [
   "brain-coral",
   "tube-sponge",
   "sea-whip",
+  "anemone",
+  "table-coral",
 ] as const;
 
 /** book order: the whales, what they eat, what swims past, what hunts, the

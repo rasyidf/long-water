@@ -59,7 +59,9 @@ export interface Coral {
   x: number;
   /** seabed y the coral is rooted at */
   y: number;
-  /** 0 sea fan | 1 staghorn | 2 brain | 3 tube sponges | 4 sea whip */
+  /** 0 sea fan | 1 staghorn | 2 brain | 3 tube sponges | 4 sea whip |
+   *  5 anemone | 6 table — see `render/coral/geometry.ts` `KIND_NAMES`;
+   *  the renderer takes it modulo `KIND_COUNT` */
   kind: number;
   scale: number;
   /** sway phase */

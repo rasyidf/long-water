@@ -22,29 +22,67 @@ edge follows (`quadraticCurveTo` through the same midpoints), with per-segment
 alpha from the ambient light and round caps, so it hugs the silhouette and just
 fades out over dark columns.
 
-## 2. Coral rework (`render/CoralRenderer.ts`)
+## 2. Coral rework (`render/coral/`)
 
-Old coral was bare wireframe strokes (the "spider firework" fans). Now every
-growth is a **filled silhouette + rim/vein highlight + contact shadow**, colour
-sunk toward the water (`mixColor(C.coral, 0x14384a, ~0.5)`) with a per-item hue
-jitter so a patch isn't monochrome. Five kinds (`Coral.kind % 5`):
+Old coral was bare wireframe strokes (the "spider firework" fans). Every
+growth is now a **filled silhouette + rim/vein highlight + contact shadow**,
+colour sunk toward the water with a per-item hue jitter so a patch isn't
+monochrome. Seven kinds (`Coral.kind % KIND_COUNT`, names in
+`render/coral/geometry.ts`):
 
-| kind | name        | shape |
-|------|-------------|-------|
-| 0    | sea fan     | filled membrane on a stalk, radiating veins |
-| 1    | staghorn    | recursively branching tapered arms, budded tips |
-| 2    | brain       | filled dome, nested contour grooves, sunlit shoulder |
-| 3    | tube sponge | clump of tapered tubes, dark mouths + bright lips |
-| 4    | sea whip    | tall thin swaying strands studded with polyps |
+| kind | name        | shape | moves |
+|------|-------------|-------|-------|
+| 0    | sea fan     | filled membrane on a stalk, radiating veins, polyps beading the edge | leans with the current; a ripple flutters across the edge |
+| 1    | staghorn    | recursively branching tapered arms (depth 1–4), budded tips | rigid trunks, only the outer tips give |
+| 2    | brain       | filled dome with a scalloped outline, nested contour grooves, sunlit shoulder | rock — never moves; polyps stir in the outer groove |
+| 3    | tube sponge | clump of 3–5 tapered tubes, dark mouths + bright lips, pores up the lit flank | mouths breathe on their own phase |
+| 4    | sea whip    | three tall thin strands studded with polyps | bends most; each strand adds its own wave |
+| 5    | anemone     | squat soft column, oral disc + mouth, ring of 10–16 tapered tentacles | column leans; every tentacle wobbles independently |
+| 6    | table       | stem under a flat scalloped plate, shadowed underside, fingers on top | plate barely moves; fingers sway |
 
-Spawners bumped to `kind = rng()*5` (`world/WorldSpawner.ts`,
-`world/PreviewScene.ts`).
+### 2026-09-11 — procedural pass (whale-standard)
+
+`render/CoralRenderer.ts` is now a thin consumer (cull, ambient + sonar
+light) delegating to `render/coral/ProceduralCoralView.ts`, with the shape
+math split into a pure `render/coral/geometry.ts` (+ `geometry.test.ts`, 40
+cases) the same way `render/whale/` is organised:
+
+- **Genome, not state.** Height, spread, lean, hue tone, limb counts and
+  branch jitter are hashed off the item's seabed `x` (`genome()`), so two
+  growths of one kind never match and nothing new is stored on `Coral`.
+- **One current for the patch.** `currentAt(seed, x, t)` is fbm over `x`
+  (slow surge + a quicker gust term), so neighbours lean together with a
+  phase lag along the shelf instead of each on its own metronome.
+  `swayAt(fy, current, stiffness)` bends quadratically up the growth with the
+  holdfast pinned; per-kind `STIFFNESS` decides how much each gives.
+- **Light from above.** A rim highlight on the sun-facing upper edges (side
+  from `sunLean()`, so it agrees with the god-rays and ship shadows), a form
+  shadow at the root, the contact shadow on the rock. Depth sinks the hue
+  toward the water and drops the warm channels first (`sinkColor`), the cheap
+  colour-absorption cue; a sonar sweep lifts the tips back up.
+- **Life.** Fan flutter, breathing tube mouths, pulsing polyps, wobbling
+  anemone tentacles, swaying table fingers — all off `clock.t` and the item's
+  phase, all dialled by `CoralParams`.
+- **LOD** on on-screen height: veins, buds, grooves, polyps and the outer
+  staghorn levels fade in with `smoothstep`, nothing pops.
+- **Zero per-frame allocation**: pooled outline points, a pooled staghorn
+  segment array, a palette cache keyed on quantised hue / light / sonar.
+- **Dials** live in `render/coral/params.ts` (`CORAL_DEFAULTS`, live override
+  via `setCoralParams`) and are all exposed in the designer:
+  `tools.html#coral` now has a **body** mode (one growth per kind on a flat
+  rock, hover/pin draw sections with the source block shown, isolate kinds)
+  and the original **scene** mode (level-driven scatter), both reading the
+  same live params. `scripts/shot-coral.mjs` drives it for screenshots.
+
+Still open from §3: encrusting mats, bleached variants, coral ambient
+occlusion on the rock, polyp shimmer in shafts / at night (needs the glow
+pass), a kelp zone.
 
 ## 3. Backlog — what else the reef / stage can take
 
 **Coral & rock**
-- Table/plate coral (flat horizontal disc on a stem) — reads great in silhouette.
-- Anemone / bubble coral — cluster of soft round tips, slow independent wobble.
+- ~~Table/plate coral~~ — shipped as kind 6 (2026-09-11).
+- ~~Anemone~~ — shipped as kind 5 (2026-09-11); bubble coral still open.
 - Encrusting mats — low colour patches painted straight onto the rock crest.
 - Bleached / dead patches — desaturated variants for visual rhythm.
 - Coral ambient occlusion — a soft dark gradient the growth drops on the rock.
