@@ -1,25 +1,29 @@
 /** Non-whale life: krill swarms and fish schools. */
 
 export interface KrillPart {
-  a: number;
-  r: number;
+  /** offset from the swarm centre, world units */
+  ox: number;
+  oy: number;
+  /** velocity relative to the swarm centre */
+  vx: number;
+  vy: number;
+  /** per-mote phase for its wander heading and swim bursts */
   ph: number;
+  /** world position, written by `KrillSystem` for the renderers */
   px: number;
   py: number;
-  kx: number;
-  ky: number;
 }
 
 export interface Swarm {
   x: number;
   y: number;
   baseY: number;
+  /** current cohesion radius — shrinks from `r0` as the swarm balls up */
   r: number;
   r0: number;
   parts: KrillPart[];
   amount: number;
   lit: number;
-  spin: number;
   ph: number;
   panic: number;
 }

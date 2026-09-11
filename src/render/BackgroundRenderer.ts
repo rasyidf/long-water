@@ -1,25 +1,21 @@
 /** Water column, sky, god-rays, marine snow, caustics and the depth vignette. */
 import { Texture } from "pixi.js";
-import { C, DARK_FULL, DARK_START, SUN_LEAN } from "../config/constants";
+import { DARK_FULL, DARK_START } from "../config/constants";
 import { zoneAt, zones } from "../config/zones";
 import { lightAt } from "../core/light";
-import { clamp01, hash01 } from "../core/math";
+import { clamp01, smoothstep } from "../core/math";
 import type { GameContext } from "../core/GameContext";
 import type { System } from "../core/System";
 import { gradientTexture, hex } from "./textures";
 import { mixColor } from "./color";
-
-/** brightness of a light shaft along its length (0..1 of its own length):
- * ramps in just under the surface, then eases to zero at the bottom. */
-function shaftProfile(t: number): number {
-  const up = clamp01(t / 0.16);
-  const down = 1 - clamp01((t - 0.16) / 0.84);
-  return up * down * down;
-}
+import { OceanView } from "./ocean/OceanView";
+import { oceanDrawOptions, oceanParams } from "./ocean/params";
+import { skyLight } from "./ocean/sky";
 
 export class BackgroundRenderer implements System {
   readonly name = "render:background";
   private waterTex: Record<string, Texture> = {};
+  private ocean = new OceanView();
 
   init(ctx: GameContext): void {
     for (const z of zones()) {
@@ -40,14 +36,6 @@ export class BackgroundRenderer implements System {
       );
     }
     const L = ctx.layers;
-    L.sky.texture = gradientTexture(
-      [
-        [0, "#21344a"],
-        [1, "#4b8088"],
-      ],
-      8,
-      128,
-    );
     L.vignette.texture = gradientTexture(
       [
         [0, "rgba(4,8,14,0)"],
@@ -77,22 +65,15 @@ export class BackgroundRenderer implements System {
     );
   }
 
-  /** vertical displacement of the water surface at world-x `wx` (world units) */
-  private waveAt(wx: number, t: number): number {
-    return (
-      Math.sin(wx * 0.006 + t * 1.0) * 7 +
-      Math.sin(wx * 0.013 - t * 1.6) * 4 +
-      Math.sin(wx * 0.0021 + t * 0.5) * 11
-    );
-  }
-
   render(ctx: GameContext): void {
     const { camera: cam, layers: L, clock, whale } = ctx;
     const VW = cam.vw;
     const VH = cam.vh;
-    const sc = cam.scale;
     const y0 = cam.sy(0);
     const y1 = cam.sy(3200);
+    const p = oceanParams();
+    const draw = oceanDrawOptions();
+    const day = skyLight(p.sky.timeOfDay).daylight;
 
     const z = zoneAt(whale.x);
     L.waterSprite.texture = this.waterTex[z.id];
@@ -100,162 +81,38 @@ export class BackgroundRenderer implements System {
     L.waterSprite.width = VW;
     L.waterSprite.y = y0;
     L.waterSprite.height = Math.max(1, y1 - y0);
+    // the column gradient is baked per zone, so the hour is applied as a tint —
+    // white (a no-op) in full daylight, cooling and darkening after sunset
+    L.waterSprite.tint = mixColor(0x39465c, 0xffffff, 0.3 + 0.7 * day);
 
-    // amplitude grows when the whale is near the surface / just breached
-    const ampWorld =
-      22 * (whale.y < 240 ? 1.45 : 1) + Math.min(30, cam.shake * 1.4);
-    const ampPx = ampWorld * sc;
+    // the swell runs bigger when the whale is near the surface or has just
+    // breached, which is also when the player is looking straight at it
+    const gain =
+      1 +
+      0.35 * (1 - smoothstep(120, 420, whale.y)) +
+      Math.min(0.6, cam.shake * 0.04);
 
-    const surfaceVisible = y0 > -160 - ampPx && y0 < VH + 80;
-    L.sky.visible = y0 > -ampPx;
-    if (L.sky.visible) {
-      L.sky.x = 0;
-      L.sky.width = VW;
-      L.sky.y = 0;
-      L.sky.height = Math.max(1, y0 + ampPx + 30 * sc); // cover the deepest trough
-    }
+    this.ocean.drawSky(L.sky, p, cam, clock.t, gain, draw);
+    this.ocean.drawSurface(L.surface, p, cam, clock.t, z.shelf, gain, draw);
 
-    // animated wavy waterline. The water body itself is a flat-topped sprite
-    // rectangle, so on its own its upper edge cuts a dead-straight line across
-    // the wave crests while the foam wiggles separately above it — reading as
-    // two disconnected lines. We first paint an opaque wavy apron in the
-    // water's own surface colour, from the waveline down past that straight
-    // edge, then lay the sunlit slabs and a soft double foam stroke over it:
-    // one continuous crest, no seam.
-    const sf = L.surface;
-    sf.clear();
-    if (surfaceVisible) {
-      const N = 72;
-      const span = VW + 80;
-      const wy = (screenX: number): number => {
-        const wx = cam.x + (screenX - VW / 2) / sc;
-        return y0 + this.waveAt(wx, clock.t) * sc * (ampWorld / 22);
-      };
-      const traceTop = (): void => {
-        sf.moveTo(-40, wy(-40));
-        for (let i = 0; i <= N; i++)
-          sf.lineTo((i / N) * span - 40, wy((i / N) * span - 40));
-      };
-
-      // opaque apron — covers the sprite's straight top edge in every trough
-      const apron = ampPx + 90 * sc;
-      traceTop();
-      sf.lineTo(VW + 40, wy(VW + 40) + apron);
-      sf.lineTo(-40, wy(-40) + apron);
-      sf.closePath();
-      sf.fill({ color: z.shelf });
-
-      // sunlit near-surface layer — stacked slabs so its lower edge dissolves
-      // into the water column instead of ending on a hard line
-      const slabs: ReadonlyArray<readonly [number, number]> = [
-        [40 * sc, 0.5],
-        [130 * sc + 90, 0.26],
-        [260 * sc + 220, 0.12],
-      ];
-      for (const [band, a] of slabs) {
-        traceTop();
-        sf.lineTo(VW + 40, wy(VW + 40) + band);
-        sf.lineTo(-40, wy(-40) + band);
-        sf.closePath();
-        sf.fill({ color: mixColor(z.shelf, 0xdff2ec, 0.12), alpha: a });
-      }
-
-      // foam crest — a soft wide pass under a crisp thread, both round-joined
-      // so the line never breaks on the steep face of a wave
-      for (const [w, al] of [
-        [4 + 3 * sc, 0.16],
-        [1 + 1.4 * sc, 0.5],
-      ] as const) {
-        traceTop();
-        sf.stroke({
-          width: w,
-          color: C.foam,
-          alpha: al,
-          cap: "round",
-          join: "round",
-        });
-      }
-    }
-
-    // light shafts — sunlight from above, angled slightly off vertical. Each
-    // shaft draws its width, drift, length and intensity from a hash of its
-    // world index, so the field never reads as one stamp repeated across the
-    // screen; and every shaft is split into segments whose alpha follows
-    // `shaftProfile`, fading in under the surface and tapering to nothing with
-    // depth rather than ending on a flat edge.
-    const g = L.shafts;
-    g.clear();
     const shaftK = clamp01(1 - whale.y / (DARK_START * 2.6));
-    if (y0 < VH && shaftK > 0.02) {
-      const step = 540;
-      const halfW = VW / 2 / sc;
-      const i0 = Math.floor((cam.x - halfW) / step) - 1;
-      const i1 = Math.ceil((cam.x + halfW) / step) + 1;
-      for (let i = i0; i <= i1; i++) {
-        const r = hash01(i);
-        const r2 = hash01(i * 2 + 101);
-        const r3 = hash01(i * 3 + 977);
-        const wx = i * step + (r - 0.5) * step * 0.8;
-        const drift =
-          Math.sin(clock.t * (0.14 + r2 * 0.22) + i * 1.7) * (30 + r3 * 55);
-        const x0 = cam.sx(wx) + drift * sc;
-        const topW = (22 + r * 46) * sc;
-        const len = (1200 + r3 * 1100) * sc;
-        const lean = SUN_LEAN * len * (0.7 + r2 * 0.6);
-        const peak = (0.03 + r * 0.055) * shaftK;
-        const SEG = 6;
-        for (let s = 0; s < SEG; s++) {
-          const ta = s / SEG;
-          const tb = (s + 1) / SEG;
-          const xa = x0 + lean * ta;
-          const xb = x0 + lean * tb;
-          const wa = topW * (1 + ta * 1.8);
-          const wb = topW * (1 + tb * 1.8);
-          const ya = y0 + len * ta;
-          const yb = y0 + len * tb;
-          g.moveTo(xa - wa, ya);
-          g.lineTo(xa + wa, ya);
-          g.lineTo(xb + wb, yb);
-          g.lineTo(xb - wb, yb);
-          g.closePath();
-          g.fill({
-            color: 0x78d6c8,
-            alpha: peak * (shaftProfile(ta) + shaftProfile(tb)) * 0.5,
-          });
-        }
-      }
-    }
+    this.ocean.drawShafts(L.shafts, p, cam, clock.t, shaftK, draw);
+    this.ocean.drawCaustics(L.caustics, p, cam, clock.t, draw);
 
     // marine snow (screen-wrapped parallax field)
+    const sc = cam.scale;
     const sn = L.snow;
     sn.clear();
-    for (const p of ctx.particles.snow) {
-      const par = 0.55 + p.d * 0.45;
-      const ax = (((p.x - cam.x * par) % 4000) + 4000) % 4000;
+    for (const pt of ctx.particles.snow) {
+      const par = 0.55 + pt.d * 0.45;
+      const ax = (((pt.x - cam.x * par) % 4000) + 4000) % 4000;
       const ay =
-        (((p.y - cam.y * par + clock.t * 9 * p.d) % 4000) + 4000) % 4000;
+        (((pt.y - cam.y * par + clock.t * 9 * pt.d) % 4000) + 4000) % 4000;
       const px = (ax - 2000) * sc + VW / 2;
       const py = (ay - 2000) * sc + VH / 2;
       if (px < -5 || px > VW + 5 || py < -5 || py > VH + 5) continue;
-      sn.rect(px, py, p.s * 1.7, p.s * 1.7);
-      sn.fill({ color: 0xded6c6, alpha: 0.09 + p.d * 0.15 });
-    }
-
-    // caustics
-    const cg = L.caustics;
-    cg.clear();
-    if (y0 < VH && y0 > -80) {
-      for (let i = 0; i < 70; i++) {
-        const wx = cam.x + (i / 70 - 0.5) * (VW / sc) * 1.1;
-        const ph = wx * 0.004 + clock.t * 1.6;
-        const a = Math.pow(Math.max(0, Math.sin(ph)), 6);
-        if (a < 0.04) continue;
-        const px = cam.sx(wx);
-        const py = cam.sy(14 + Math.sin(ph * 1.7) * 10);
-        cg.moveTo(px - 22 * sc, py);
-        cg.lineTo(px + 22 * sc, py + 6 * sc);
-        cg.stroke({ width: 1 + a * 2.4, color: 0x92e8dc, alpha: a * 0.5 });
-      }
+      sn.rect(px, py, pt.s * 1.7, pt.s * 1.7);
+      sn.fill({ color: 0xded6c6, alpha: 0.09 + pt.d * 0.15 });
     }
 
     // depth darkness: one world-anchored gradient from the surface down well

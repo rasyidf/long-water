@@ -38,7 +38,9 @@ export class Layers {
   /** screen-space overlay drawn on top of the world (vignette) */
   readonly overlay = new Container();
 
-  readonly sky = new Sprite();
+  /** everything above the waterline: the sky dome, sun/moon, clouds, stars,
+   * gulls and the horizon haze. Drawn procedurally, not a baked gradient. */
+  readonly sky = new Graphics();
   readonly waterSprite = new Sprite();
   /** animated wavy waterline */
   readonly surface = new Graphics();

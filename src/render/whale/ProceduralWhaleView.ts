@@ -2,69 +2,36 @@ import type { Graphics } from "pixi.js";
 import type { Camera } from "../../core/Camera";
 import { clamp01, lerp, smoothstep, type Vec2 } from "../../core/math";
 import { mixColor } from "../color";
+import {
+  bandAt as sectionBandAt,
+  bodyPoint,
+  BODY_END,
+  buildArcLength,
+  buildHullOutline,
+  buildTangents,
+  computeSection,
+  dorsalAnchors,
+  edgeBot as sectionEdgeBot,
+  edgeTop as sectionEdgeTop,
+  faceAt as sectionFaceAt,
+  type FinPoint,
+  flukeAnchors,
+  flukePitch,
+  hash01,
+  mouthPsi,
+  pectoralAnchors,
+  prpAt as sectionPrpAt,
+  rollBasis,
+  type RollBasis,
+  type Section,
+  spineFrameAt,
+} from "./geometry";
 import type { WhaleDrawOptions, WhaleSection, WhaleView } from "./WhaleView";
 
-const BODY_END = 0.94;
 /** hull segments per side at full detail; the point pools are sized for this */
 const MAX_STEPS = 40;
 /** body length (world units) the fixed feature offsets below were tuned at */
 const REF_LEN = 280;
-const TAU = Math.PI * 2;
-
-/** Stylised Blue Whale girth: the real animal is 0.14 of its length tall, which
- * reads as a submarine, so the body carries a little extra. */
-const GIRTH = 1.14;
-
-/** Authentic Blue Whale body proportions — the full dorsal-to-ventral height at
- * arc position `t`. `juv` 0..1 morphs toward a calf: the head takes up more of
- * the body and is blunter, the forebody stays full, the tail tapers less. */
-function profile(t: number, w: number, juv = 0): number {
-  // Rostrum: a long tapering wedge that keeps a small rounded tip rather than
-  // closing to a needle. Calves are blunter and their head is proportionally
-  // longer, so the ramp both shortens and softens.
-  const tip = 0.11 + juv * 0.07;
-  const ramp = Math.pow(clamp01(t / (0.3 - juv * 0.06)), 0.62 - juv * 0.2);
-  const head = tip + (1 - tip) * ramp;
-  // Aft of the girth peak the body eases away quadratically — full through the
-  // midbody, then a fast run-out into a slim tail stock.
-  const x = clamp01((t - 0.32) / 0.62);
-  const aft = 1 - (0.72 - 0.18 * juv) * x * x - 0.1 * Math.pow(x, 6);
-
-  return w * GIRTH * head * aft;
-}
-
-/** Raised splash guard just ahead of the blowhole — the one bump that breaks
- * the dorsal line, and a big part of why a blue whale reads as a blue whale. */
-function guard(t: number, w: number, juv: number): number {
-  const d = (t - 0.085) / 0.05;
-  return w * (0.075 - 0.03 * juv) * Math.exp(-d * d);
-}
-
-/** How much of the section's height sits above the spine. Low at the head, so
- * the rostrum runs nearly straight while the pleated throat hangs deep beneath
- * it; evening out through the body. This asymmetry is most of the silhouette. */
-const topFrac = (t: number): number =>
-  0.3 + 0.15 * smoothstep(0, 0.4, t) - 0.05 * smoothstep(0.55, 0.95, t);
-
-/** spine → back */
-const topHalf = (t: number, w: number, juv = 0): number =>
-  profile(t, w, juv) * topFrac(t) + guard(t, w, juv);
-/** spine → belly */
-const botHalf = (t: number, w: number, juv = 0): number =>
-  profile(t, w, juv) * (1 - topFrac(t));
-
-/** Cross-section angle of the gape, from the rostrum tip back to the jaw
- * corner. The pale throat is bounded above by this line, so the head keeps a
- * dark rostrum instead of going white all over. */
-const mouthPsi = (t: number): number => 0.26 + 1.0 * smoothstep(0, 0.17, t);
-
-/** Lateral half-width as a fraction of the vertical half-height. A blue whale
- * is broad and flat across the head, a touch taller than wide through the
- * barrel, and strongly compressed into a blade-like tail stock — which is what
- * makes the silhouette narrow so much as it rolls edge-on. */
-const latK = (t: number): number =>
-  (0.99 - 0.15 * smoothstep(0.02, 0.32, t)) *
-  (1 - 0.52 * smoothstep(0.45, 0.96, t));
 
 /** Smooth closed curve through `pts[0..count)`, quadratics via the midpoints. */
 function drawBlob(g: Graphics, pts: Vec2[], count: number): void {
@@ -91,26 +58,6 @@ function drawRibbon(g: Graphics, pts: Vec2[], count: number): void {
   }
 }
 
-/** cheap deterministic 0..1 hash, for placing the skin mottling. `seed` gives
- * each whale in a pod its own marbling. */
-function hash01(n: number, seed: number): number {
-  const s = Math.sin((n + seed * 1.37) * 127.1 + 311.7) * 43758.5453;
-  return s - Math.floor(s);
-}
-
-/**
- * `cos` of a cross-section angle that has been clipped to the visible half.
- * Angles behind the body snap to whichever silhouette edge they went round,
- * so a surface marking slides onto the outline and stops instead of leaking
- * through the far side.
- */
-function cosVisible(r: number): number {
-  let x = r % TAU;
-  if (x < 0) x += TAU;
-  if (x <= Math.PI) return Math.cos(x);
-  return x < Math.PI * 1.5 ? -1 : 1;
-}
-
 export class ProceduralWhaleView implements WhaleView {
   // Pre-allocated point pools + scratch vectors — draw() touches no `new` so a
   // pod of whales at 60fps produces no per-frame garbage from the geometry.
@@ -130,6 +77,20 @@ export class ProceduralWhaleView implements WhaleView {
   private readonly w1: Vec2 = { x: 0, y: 0 };
   /** scratch band extent: `x` the top (dorsal-most) edge, `y` the bottom */
   private readonly band: Vec2 = { x: 0, y: 0 };
+  /** scratch roll basis, rewritten once per draw */
+  private readonly rb: RollBasis = { cs: 1, sn: 0 };
+  /** scratch cross-section, memoised on `t` within a single draw */
+  private readonly sec: Section = { A: 0, C: 0, B: 0, R: 0, D: 0 };
+  /** scratch fin/fluke anchor points — 8 is the fluke's count, the largest */
+  private readonly finPts: FinPoint[] = Array.from({ length: 8 }, () => ({
+    t: 0,
+    fwd: 0,
+    prp: 0,
+  }));
+  private readonly finProj: Vec2[] = Array.from({ length: 8 }, () => ({
+    x: 0,
+    y: 0,
+  }));
 
   // Countershade palette, rebuilt only when the skin / belly inputs change so a
   // pod sharing one skin colour costs a single `mixColor` sweep per frame.
@@ -184,33 +145,12 @@ export class ProceduralWhaleView implements WhaleView {
 
     // --- arc-length table: `t` tracks real length, not joint index, so head
     //     and peduncle proportions hold if the spine stretches unevenly --------
-    this.cum[0] = 0;
-    let total = 0;
-    for (let i = 1; i <= last; i++) {
-      total += Math.hypot(sp[i].x - sp[i - 1].x, sp[i].y - sp[i - 1].y);
-      this.cum[i] = total;
-    }
+    const total = buildArcLength(sp, this.cum, last);
     if (total < 1e-3) return;
 
     // --- smoothed per-vertex tangents, once per draw. A near-zero segment
     //     keeps its neighbour's tangent instead of snapping the frame to +x. ---
-    for (let i = 0; i <= last; i++) {
-      const a = sp[Math.max(0, i - 1)];
-      const b = sp[Math.min(last, i + 1)];
-      const dx = a.x - b.x;
-      const dy = a.y - b.y;
-      const len = Math.hypot(dx, dy);
-      if (len > 1e-6) {
-        this.tan[i].x = dx / len;
-        this.tan[i].y = dy / len;
-      } else if (i > 0) {
-        this.tan[i].x = this.tan[i - 1].x;
-        this.tan[i].y = this.tan[i - 1].y;
-      } else {
-        this.tan[i].x = 1;
-        this.tan[i].y = 0;
-      }
-    }
+    buildTangents(sp, this.tan, last);
 
     const px = scale * cam.scale;
     // smooth LOD/visibility ramps so nothing pops as the camera scale drifts
@@ -235,93 +175,74 @@ export class ProceduralWhaleView implements WhaleView {
     // The body is modelled as an offset ellipse in cross-section, and rolling
     // it about the long axis is an honest 2D projection of that ellipse rather
     // than a pile of blend factors: `cs` / `sn` are how much of the ventral
-    // axis points down-screen and how much points at the camera. `rollK` eases
-    // the angle back toward level, then we renormalise so the pair stays a
-    // unit vector and the projection below stays exact at every blend value.
-    const roll = opts.roll ?? 0;
-    const rk = clamp01(opts.rollK ?? (opts.roll != null ? 1 : 0));
-    const bx = 1 + (Math.cos(roll) - 1) * rk;
-    const by = Math.sin(roll) * rk;
-    const bl = Math.hypot(bx, by) || 1;
-    const cs = bx / bl; // ventral axis → screen-down  (1 level, -1 belly-up)
-    const sn = by / bl; // ventral axis → toward camera (1 belly-on, -1 back-on)
+    // axis points down-screen and how much points at the camera. See
+    // `geometry.rollBasis` — `rollK` eases the angle back toward level and the
+    // pair is renormalised so the projection below stays exact at any blend.
+    rollBasis(
+      opts.roll ?? 0,
+      opts.rollK ?? (opts.roll != null ? 1 : 0),
+      this.rb,
+    );
+    const cs = this.rb.cs; // ventral axis → screen-down  (1 level, -1 belly-up)
+    const sn = this.rb.sn; // ventral axis → toward camera (1 belly-on, -1 back-on)
 
     // --- spine frame + point projection, writing into pre-allocated vectors ---
     const frameAt = (t: number): void => {
-      const target = clamp01(t) * total;
-      let i = 0;
-      while (i < last - 1 && this.cum[i + 1] < target) i++;
-      const seg = this.cum[i + 1] - this.cum[i] || 1;
-      const k = clamp01((target - this.cum[i]) / seg);
-      this.p.x = sp[i].x + (sp[i + 1].x - sp[i].x) * k;
-      this.p.y = sp[i].y + (sp[i + 1].y - sp[i].y) * k;
-      // interpolate the smoothed vertex tangents, then renormalise, so the
-      // outline offset turns continuously through each spine joint (no kinks)
-      const fx = this.tan[i].x + (this.tan[i + 1].x - this.tan[i].x) * k;
-      const fy = this.tan[i].y + (this.tan[i + 1].y - this.tan[i].y) * k;
-      const fl = Math.hypot(fx, fy);
-      if (fl > 1e-6) {
-        this.f.x = fx / fl;
-        this.f.y = fy / fl;
-      }
-      this.per.x = -this.f.y * facing;
-      this.per.y = this.f.x * facing;
+      spineFrameAt(
+        sp,
+        this.cum,
+        this.tan,
+        total,
+        last,
+        t,
+        facing,
+        this.p,
+        this.f,
+        this.per,
+      );
     };
 
     /** screen-space point `fwd` along the spine tangent and `prp` off it */
     const at = (t: number, fwd: number, prp: number, out: Vec2): Vec2 => {
       frameAt(t);
-      const wx = this.p.x + (this.f.x * fwd + this.per.x * prp) * scale;
-      const wy = this.p.y + (this.f.y * fwd + this.per.y * prp) * scale;
-      out.x = cam.sx(wx);
-      out.y = cam.sy(wy);
+      bodyPoint(this.p, this.f, this.per, fwd, prp, scale, out);
+      out.x = cam.sx(out.x);
+      out.y = cam.sy(out.y);
       return out;
     };
 
-    /** screen-space point from a body-frame offset: `ven` toward the belly,
-     * `lat` out the whale's side. Both are rolled by the basis above, so a fin
-     * that lives out on the flank swings through the roll on its own. */
-    const at3 = (
-      t: number,
-      fwd: number,
-      ven: number,
-      lat: number,
-      out: Vec2,
-    ): Vec2 => at(t, fwd, ven * cs - lat * sn, out);
-
-    /** how far toward the camera a body-frame offset sits; >0 is the near side */
-    const depth3 = (ven: number, lat: number): number => ven * sn + lat * cs;
+    /** project every `FinPoint` in `this.finPts[0..count)` through `at()` into
+     * `this.finProj`, for the fin/fluke blade outlines below */
+    const projectFinPts = (count: number): void => {
+      for (let i = 0; i < count; i++) {
+        at(
+          this.finPts[i].t,
+          this.finPts[i].fwd,
+          this.finPts[i].prp,
+          this.finProj[i],
+        );
+      }
+    };
 
     // ---- cross-section, memoised on `t` ------------------------------------
     // Callers hit the same `t` two or three times in a row (top edge, bottom
     // edge, band centre), so one slot of memo removes most of the profile work.
     let mt = NaN;
-    let mA = 0; // vertical semi-axis
-    let mC = 0; // ventral offset of the section centre from the spine
-    let mB = 0; // lateral semi-axis
-    let mR = 0; // projected half-extent once rolled
-    let mD = 0; // cross-section angle that has rolled onto the near edge
     const sect = (t: number): void => {
       if (t === mt) return;
       mt = t;
-      const d = topHalf(t, width, juv);
-      const v = botHalf(t, width, juv);
-      mA = (d + v) * 0.5;
-      mC = (v - d) * 0.5;
-      mB = mA * latK(t);
-      mR = Math.hypot(mA * cs, mB * sn);
-      mD = Math.atan2(mB * sn, mA * cs);
+      computeSection(t, width, juv, cs, sn, this.sec);
     };
 
     /** silhouette edges — exact for the rolled ellipse, so at level roll these
      * are the plain back / belly lines and edge-on they narrow to the girth */
     const edgeTop = (t: number): number => {
       sect(t);
-      return mC * cs - mR;
+      return sectionEdgeTop(this.sec, cs);
     };
     const edgeBot = (t: number): number => {
       sect(t);
-      return mC * cs + mR;
+      return sectionEdgeBot(this.sec, cs);
     };
 
     /**
@@ -332,13 +253,13 @@ export class ProceduralWhaleView implements WhaleView {
      */
     const prpAt = (t: number, psi: number): number => {
       sect(t);
-      return mC * cs + mR * cosVisible(psi + mD);
+      return sectionPrpAt(this.sec, cs, psi);
     };
     /** how squarely that surface point faces the camera: 1 head-on, 0 at the
      * silhouette edge, negative once it has rolled round the far side */
     const faceAt = (t: number, psi: number): number => {
       sect(t);
-      return Math.sin(psi + mD);
+      return sectionFaceAt(this.sec, psi);
     };
 
     /**
@@ -348,25 +269,7 @@ export class ProceduralWhaleView implements WhaleView {
      */
     const bandAt = (t: number, centre: number, half: number): void => {
       sect(t);
-      const w = Math.min(half, 1.5); // keep the arc under a half turn
-      const lo0 = centre - w + mD;
-      const lo = lo0 - TAU * Math.floor(lo0 / TAU); // → [0, 2π)
-      const hi = lo + 2 * w;
-      let a = Math.max(lo, 0);
-      let b = Math.min(hi, Math.PI);
-      if (b <= a) {
-        a = Math.max(lo, TAU);
-        b = Math.min(hi, TAU + Math.PI);
-      }
-      const mid = mC * cs;
-      if (b <= a) {
-        const e = mid + ((lo + hi) * 0.5 < Math.PI * 1.5 ? -mR : mR);
-        this.band.x = e;
-        this.band.y = e;
-        return;
-      }
-      this.band.x = mid + mR * Math.cos(b); // top
-      this.band.y = mid + mR * Math.cos(a); // bottom
+      sectionBandAt(this.sec, cs, centre, half, this.band);
     };
 
     // shared band extent for the shading layers below
@@ -434,42 +337,13 @@ export class ProceduralWhaleView implements WhaleView {
       const pg = pick(near ? "nearPectoral" : "farPectoral");
       const t = 0.27;
       sect(t);
-      const rootV = mC + mA * 0.1; // low on the flank, a touch below the spine
-      const rootL = side * mB * 0.9;
-      const outL = side * (mB * 0.9 + 32 * featK); // lateral reach of the tip
-      const drop = 22 * featK; // and how far it hangs below the root
-      const aft = 38 * featK; // how far back it trails
-      // a hair of perspective, so the near flipper isn't a pixel-exact copy of
-      // the far one when the pair overlaps at level roll
-      const q = 1 + 0.05 * (depth3(rootV, rootL) / Math.max(1, mA));
-
-      /** a point on the blade: `u` out along the span, `fwd` its chord offset.
-       * Keeping the span and the chord as separate axes is what lets the
-       * flipper read as a blade at level roll (span foreshortened, chord not)
-       * and as its full slender self once the whale rolls onto its side. */
-      const pec = (u: number, fwd: number, out: Vec2): Vec2 =>
-        at3(
-          t,
-          (-aft * u + fwd) * q,
-          rootV + drop * u * q,
-          rootL + (outL - rootL) * u * q,
-          out,
-        );
-
-      const rfX = pec(0, 13 * featK, this.w0).x;
-      const rfY = this.w0.y;
-      const rbX = pec(0, -13 * featK, this.w0).x;
-      const rbY = this.w0.y;
-      const tipX = pec(1, 0, this.w0).x;
-      const tipY = this.w0.y;
-
-      pg.moveTo(rfX, rfY);
-      pec(0.52, 5 * featK, this.w0); // leading edge, gently convex
-      pg.quadraticCurveTo(this.w0.x, this.w0.y, tipX, tipY);
-      pec(0.55, -13 * featK, this.w0); // trailing edge, gently concave
-      pg.quadraticCurveTo(this.w0.x, this.w0.y, rbX, rbY);
-      pec(0, -2 * featK, this.w0); // root fillet
-      pg.quadraticCurveTo(this.w0.x, this.w0.y, rfX, rfY);
+      pectoralAnchors(this.sec, t, side, cs, sn, featK, this.finPts);
+      projectFinPts(6);
+      const P = this.finProj;
+      pg.moveTo(P[0].x, P[0].y);
+      pg.quadraticCurveTo(P[1].x, P[1].y, P[2].x, P[2].y); // root → tip
+      pg.quadraticCurveTo(P[3].x, P[3].y, P[4].x, P[4].y); // tip → root back
+      pg.quadraticCurveTo(P[5].x, P[5].y, P[0].x, P[0].y); // root fillet, close
       pg.closePath();
       // the underside is pale, so a flipper seen from below lightens
       const under = clamp01(sn) * 0.42;
@@ -488,24 +362,13 @@ export class ProceduralWhaleView implements WhaleView {
       const dg = pick(near ? "dorsal" : "farDorsal");
       const t = 0.74;
       sect(t);
-      const h = (mA * 0.5 + 3 * featK) * (1 - 0.22 * juv);
-      // roots a hair inside the back, so the blade grows out of the body
-      const base = (mC - mA) * 0.94;
-      const frX = at3(t + 0.035, 0, base, 0, this.w0).x;
-      const frY = this.w0.y;
-      const bkX = at3(t - 0.055, 0, base, 0, this.w0).x;
-      const bkY = this.w0.y;
-      // the tip is swept well aft of the root — a falcate hook, not a triangle
-      const tpX = at3(t - 0.05, -9 * featK, base - h, 0, this.w0).x;
-      const tpY = this.w0.y;
-
-      dg.moveTo(frX, frY);
-      at3(t + 0.015, 1 * featK, base - h * 0.62, 0, this.w0); // convex leading
-      dg.quadraticCurveTo(this.w0.x, this.w0.y, tpX, tpY);
-      at3(t - 0.05, -6 * featK, base - h * 0.34, 0, this.w0); // concave trailing
-      dg.quadraticCurveTo(this.w0.x, this.w0.y, bkX, bkY);
-      at3(t - 0.01, 0, base * 0.55, 0, this.w0);
-      dg.quadraticCurveTo(this.w0.x, this.w0.y, frX, frY);
+      dorsalAnchors(this.sec, t, juv, cs, featK, this.finPts);
+      projectFinPts(6);
+      const P = this.finProj;
+      dg.moveTo(P[0].x, P[0].y);
+      dg.quadraticCurveTo(P[1].x, P[1].y, P[2].x, P[2].y); // front root → tip
+      dg.quadraticCurveTo(P[3].x, P[3].y, P[4].x, P[4].y); // tip → back root
+      dg.quadraticCurveTo(P[5].x, P[5].y, P[0].x, P[0].y); // closing fillet
       dg.closePath();
       dg.fill({ color: near ? this.cFin : this.cDark, alpha });
     };
@@ -525,17 +388,6 @@ export class ProceduralWhaleView implements WhaleView {
     {
       const fg = pick("fluke");
       const rootT = BODY_END;
-      sect(rootT);
-      const span = 34 * featK;
-      const sweep = 18 * featK;
-      const droop = 5 * featK; // tips trailing below the plane
-      // Seen from dead abeam the blades would foreshorten to a hairline. Hold a
-      // floor under the span projection so the tail always reads as a tail —
-      // the one deliberate cheat in the roll, and the amount a real fluke shows
-      // anyway once you are a few degrees off its plane.
-      const SPREAD = 0.36;
-      const snF = sn >= 0 ? Math.max(sn, SPREAD) : Math.min(sn, -SPREAD);
-
       // Angle of attack from the pose itself: how far the tail stock bows off
       // the chord through it. It peaks at the ends of each stroke, so the blade
       // flashes its face on every beat without any extra state to carry.
@@ -543,41 +395,15 @@ export class ProceduralWhaleView implements WhaleView {
       const jA = sp[last];
       const jB = sp[Math.max(0, last - 2)];
       const jC = sp[Math.max(0, last - 4)];
-      const chl = Math.hypot(jA.x - jC.x, jA.y - jC.y) || 1;
-      const bow =
-        ((jB.x - jC.x) * this.per.x + (jB.y - jC.y) * this.per.y) / chl;
-      const pitch = -clamp01(Math.abs(bow) * 1.9) * Math.sign(bow) * 0.5;
-      const cp = Math.cos(pitch);
-      const spn = Math.sin(pitch);
-      /** one fluke point: `lat` out the span, `fwd`/`ven` in the pitched chord */
-      const fluke = (fwd: number, ven: number, lat: number): Vec2 => {
-        const v = ven + droop * Math.abs(lat / span);
-        const fw = fwd * cp + v * spn;
-        const vn = v * cp - fwd * spn;
-        return at(rootT, fw, vn * cs - lat * snF, this.w0);
-      };
-
-      const rx = fluke(2 * featK, 0, 0).x;
-      const ry = this.w0.y;
-      fluke(-sweep, 0, -span);
-      const topX = this.w0.x;
-      const topY = this.w0.y;
-      fluke(-sweep * 0.3, 0, 0);
-      const notchX = this.w0.x;
-      const notchY = this.w0.y;
-      fluke(-sweep, 0, span);
-      const botX = this.w0.x;
-      const botY = this.w0.y;
-
-      fg.moveTo(rx, ry);
-      fluke(3 * featK, 0, -span * 0.6); // leading edge, root → tip
-      fg.quadraticCurveTo(this.w0.x, this.w0.y, topX, topY);
-      fluke(-sweep * 1.35, 0, -span * 0.36); // concave trailing edge
-      fg.quadraticCurveTo(this.w0.x, this.w0.y, notchX, notchY);
-      fluke(-sweep * 1.35, 0, span * 0.36);
-      fg.quadraticCurveTo(this.w0.x, this.w0.y, botX, botY);
-      fluke(3 * featK, 0, span * 0.6);
-      fg.quadraticCurveTo(this.w0.x, this.w0.y, rx, ry);
+      const pitch = flukePitch(this.per, jA, jB, jC);
+      flukeAnchors(rootT, cs, sn, pitch, featK, this.finPts);
+      projectFinPts(8);
+      const P = this.finProj;
+      fg.moveTo(P[0].x, P[0].y);
+      fg.quadraticCurveTo(P[1].x, P[1].y, P[2].x, P[2].y); // root → near tip
+      fg.quadraticCurveTo(P[3].x, P[3].y, P[4].x, P[4].y); // near tip → notch
+      fg.quadraticCurveTo(P[5].x, P[5].y, P[6].x, P[6].y); // notch → far tip
+      fg.quadraticCurveTo(P[7].x, P[7].y, P[0].x, P[0].y); // far tip → root
       fg.closePath();
       // the flukes' undersides are pale like the belly
       fg.fill({
@@ -589,23 +415,39 @@ export class ProceduralWhaleView implements WhaleView {
     // ---------- Main body hull ----------
     // Wound as one loop: top edge aft, bottom edge forward, then the head cap.
     // (The cap points come last so the outline never crosses itself at the
-    // rostrum, which would confuse earcut and notch the snout.)
+    // rostrum, which would confuse earcut and notch the snout — see
+    // `geometry.buildHullOutline` and its self-intersection test.)
     {
       const hg = pick("hull");
-      let n = 0;
-      for (let s = 1; s <= STEPS; s++) {
-        const t = (s / STEPS) * BODY_END;
-        at(t, 0, edgeTop(t), this.outline[n++]);
+      const n = buildHullOutline(
+        sp,
+        this.cum,
+        this.tan,
+        total,
+        last,
+        facing,
+        scale,
+        width,
+        juv,
+        cs,
+        sn,
+        STEPS,
+        this.p,
+        this.f,
+        this.per,
+        this.sec,
+        this.outline,
+      );
+      for (let i = 0; i < n; i++) {
+        this.outline[i].x = cam.sx(this.outline[i].x);
+        this.outline[i].y = cam.sy(this.outline[i].y);
       }
-      for (let s = STEPS; s >= 1; s--) {
-        const t = (s / STEPS) * BODY_END;
-        at(t, 0, edgeBot(t), this.outline[n++]);
-      }
-      at(0.01, 0, edgeBot(0.01), this.outline[n++]);
-      at(0, 1, 0, this.outline[n++]);
-      at(0.01, 0, edgeTop(0.01), this.outline[n++]);
       drawBlob(hg, this.outline, n);
       hg.fill({ color: skin, alpha });
+      // buildHullOutline wrote straight into this.sec, bypassing sect()'s own
+      // memo — invalidate it so the next sect(t) call can't skip a recompute
+      // on a stale match.
+      mt = NaN;
     }
 
     // ---------- Pale belly countershading ----------

@@ -1,8 +1,9 @@
 /** Ship hulls at the surface: a cast shadow raking down into the water column
  * (light from above, slightly off vertical), the hull itself, and a faint red
  * noise footprint read by PodSystem. */
-import { C, SUN_LEAN } from "../config/constants";
+import { C } from "../config/constants";
 import { clamp01 } from "../core/math";
+import { sunLean } from "./ocean/params";
 import type { GameContext } from "../core/GameContext";
 import type { System } from "../core/System";
 
@@ -32,7 +33,7 @@ export class ShipRenderer implements System {
       // opposite the ship's travel, and shimmers so it never sits static.
       const drag = clamp01(Math.abs(s.v) / 70);
       const len = (900 + 520 * drag) * sc;
-      const lean = SUN_LEAN * len - Math.sign(s.v) * drag * 26 * sc;
+      const lean = sunLean() * len - Math.sign(s.v) * drag * 26 * sc;
       const halfTop = Ln * 0.44;
       const shimmer = 1 + Math.sin(clock.t * 1.3 + s.x * 0.002) * 0.12;
       const SEG = 7;

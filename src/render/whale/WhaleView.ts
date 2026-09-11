@@ -5,11 +5,10 @@
  * `WhaleRenderer` — no simulation code changes, because the spine chain in
  * `core/SpineChain` stays the source of truth for pose.
  */
-import type { Graphics } from "pixi.js";
-import type { Camera } from "../../core/Camera";
 import type { Vec2 } from "../../core/math";
+import type { CreatureDrawOptions, CreatureView } from "../CreatureView";
 
-export interface WhaleDrawOptions {
+export interface WhaleDrawOptions extends CreatureDrawOptions<WhaleSection> {
   scale: number;
   facing: number;
   skin: number;
@@ -28,10 +27,6 @@ export interface WhaleDrawOptions {
   rollK?: number;
   /** per-whale seed so each body in a pod gets its own skin mottling. */
   seed?: number;
-  /** designer hook: returns the `Graphics` a named draw section should render
-   * into, so a tool can isolate / highlight each block. Undefined (the default,
-   * and every in-game call) → the section draws into the shared `g`. */
-  layer?: (section: WhaleSection) => Graphics | undefined;
 }
 
 /** the named draw sections of `ProceduralWhaleView`, in draw / z order */
@@ -50,12 +45,9 @@ export type WhaleSection =
   | "rim"
   | "face";
 
-export interface WhaleView {
-  /** draw one whale into `g`; `spine` is the undulating display chain */
-  draw(
-    g: Graphics,
-    spine: ReadonlyArray<Vec2>,
-    opts: WhaleDrawOptions,
-    cam: Camera,
-  ): void;
-}
+/** `state` is the undulating display spine chain — see `core/SpineChain`. */
+export type WhaleView = CreatureView<
+  ReadonlyArray<Vec2>,
+  WhaleSection,
+  WhaleDrawOptions
+>;

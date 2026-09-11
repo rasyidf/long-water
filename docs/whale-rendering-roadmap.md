@@ -121,8 +121,61 @@ Ordered. Items 1–2 are the ones that could change what shipped.
 ### N5. Still open from the first pass
 - #3 fill-object reuse, #15 layer alpha (needs an interface change), #18 true
   LOD hysteresis (needs per-whale state), #22 blue-whale colouring (wants a
-  side-by-side review), #26 Mesh + shader, #27 pure geometry + unit tests (no
-  test runner installed — would need vitest), #28 done.
+  side-by-side review), #26 Mesh + shader, #28 done.
+- #27 **partly done** (2026-09-10, `feat/procedural-views`): the already-pure
+  shape math (`profile` / `topHalf` / `botHalf` / `mouthPsi` / `latK` /
+  `cosVisible` / `hash01`) plus a new allocation-free `rollBasis` are lifted to
+  [src/render/whale/geometry.ts](../src/render/whale/geometry.ts) with vitest
+  coverage. The outline/fin *assembly* is still entangled with Pixi + the camera
+  in `ProceduralWhaleView` — a `spine → outline points + fin anchors` pure
+  function is the remaining step. Also landed: a shared
+  [CreatureView](../src/render/CreatureView.ts) seam and a matching
+  `ProceduralSquidView` (`SquidRenderer` is now a thin cull-and-delegate System).
+- #27 **further progress** (2026-09-11): the spine-frame math (arc-length
+  table, smoothed-tangent build, and the per-`t` interpolation that bugs #4/#5/#6
+  live in) and the cross-section math (`computeSection`/`edgeTop`/`edgeBot`/
+  `prpAt`/`faceAt`/`bandAt`) are now pure functions in `geometry.ts` —
+  `buildArcLength`, `buildTangents`, `spineFrameAt`, `computeSection`, and
+  friends — with vitest coverage, including a direct test of the bug #4
+  degenerate-segment fallback. `ProceduralWhaleView` now just calls these and
+  keeps its own scratch state (`this.sec`, `this.cum`, `this.tan`) for the
+  zero-allocation guarantee. Verified byte-identical output via
+  `scripts/shot-rolls.mjs` at 0/45/90/135/180° roll before vs. after.
+- #27 **hull outline extracted** (2026-09-11, same session): `bodyPoint`
+  (world-space spine-frame offset, pure counterpart of the view's screen-space
+  `at()`) and `buildHullOutline` (the full `spine → outline points` loop —
+  top edge aft, bottom edge forward, then the head cap) are now pure functions
+  in `geometry.ts`. `geometry.test.ts` has a direct regression test for **bug
+  #1** (hull self-intersection at the rostrum): a proper segment-crossing
+  check over the wound outline, at STEPS 8/20/40 on a straight spine and once
+  on a curved one — the exact test the original bug#1 writeup asked for.
+  `ProceduralWhaleView`'s hull-building block now just calls
+  `buildHullOutline` and maps `cam.sx`/`cam.sy` over the result. Re-verified
+  byte-identical output via `shot-rolls.mjs`, including a `juv=0.8` case.
+  Still outstanding: pectoral/dorsal fin and fluke blade point construction
+  are still interleaved with Pixi curve calls (`moveTo`/`quadraticCurveTo`) in
+  the view — pulling the fin *anchor points* out the same way, while leaving
+  the actual `Graphics` drawing in the view, is what's left of #27.
+- #27 **done** (2026-09-11, same session): `pectoralAnchors`, `dorsalAnchors`,
+  `flukePitch`, and `flukeAnchors` are pure functions in `geometry.ts` that
+  return each blade's points as `FinPoint { t, fwd, prp }` — `prp` has the
+  roll basis baked in, so the view's old `at3`/`depth3` helpers (now deleted)
+  are no longer needed. `ProceduralWhaleView` fills a shared 8-slot scratch
+  pool (`this.finPts` → `this.finProj`, sized for the fluke's 8 points, the
+  largest of the three), then reads the projected coordinates straight into
+  `moveTo`/`quadraticCurveTo` — no interleaved computation left. `geometry.ts`
+  now has no Pixi or Camera coupling anywhere: `profile → topHalf/botHalf →
+  computeSection → buildHullOutline` and `pectoralAnchors`/`dorsalAnchors`/
+  `flukeAnchors` cover the whole `spine → outline points + fin anchors`
+  pipeline from the original #27 proposal. 12 new vitest cases (55 total, up
+  from 28 at the start of this doc's last "Progress" entry), plus the usual
+  `scripts/shot-rolls.mjs` byte-identical check — this time also covering
+  `wave=1` (stroke motion), since `flukePitch` is the one new piece of trig in
+  this pass and needed a moving spine to exercise it.
+  **#27 is now closed**: the geometry/renderer split proposed in the
+  architecture section is complete for the whale. What's left of the
+  outline/fin code in `ProceduralWhaleView` is Pixi drawing calls only
+  (`moveTo`/`quadraticCurveTo`/`fill`/`stroke`), not shape math.
 
 ---
 
@@ -367,7 +420,11 @@ Ordered. Items 1–2 are the ones that could change what shipped.
 - **Estimate:** Significant refactor; candidate for dedicated effort.
 
 ### 27. Extract geometry from Pixi first
-- **Status:** ☐ Not started
+- **Status:** ✅ Done (2026-09-11) — spine frame, cross-section, hull outline,
+  and pectoral/dorsal/fluke anchor math are all pure functions in
+  `render/whale/geometry.ts` with vitest coverage (55 cases). See "Next up —
+  whale visuals" → N5 for the full history. `ProceduralWhaleView` now only
+  does camera projection and `Graphics` drawing.
 - **Priority:** Enable testing and reduce renderer coupling
 - **Description:** Geometry calculation is entangled with Pixi rendering. Pull it out into pure functions.
 - **Proposal:** Pure function: `spine + options → outline points + fin anchors (in body space)`.
@@ -413,4 +470,4 @@ Use checkboxes above to mark progress. Update status from "Not started" → "In 
 
 For complex items, consider opening a GitHub issue linked back to this doc.
 
-**Last updated:** 2026-09-10 (second pass — see “Next up — whale visuals”)
+**Last updated:** 2026-09-11 (#27 closed — full geometry/renderer split done, see “Next up — whale visuals”)
