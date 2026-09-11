@@ -1,10 +1,16 @@
-/** Keyboard state. Owns nothing gameplay — systems read `pressed()` / axes. */
+/** Keyboard + touch input state. Owns nothing gameplay — systems read
+ * `pressed()` / axes. Touch (the on-screen joystick + buttons, see
+ * `hud/TouchControls`) feeds the same key/edge tables as the keyboard, so
+ * every downstream system reads one API regardless of input source. */
 export class Input {
   private keys: Record<string, boolean> = {};
   /** codes whose keydown edge landed since the last frameEnd() */
   private edges = new Set<string>();
   private onRestart?: () => void;
   private onPause?: () => void;
+  /** set while a finger is dragging the on-screen stick; overrides moveAxis()
+   *  with the raw (non-unit-normalized) analog deflection */
+  private touchAxis: { x: number; y: number } | null = null;
 
   /** `onRestart` fires on every `R` keydown — callers (title/end screens) gate
    *  whether that means anything right now. `onPause` fires on every `Escape`
@@ -39,6 +45,25 @@ export class Input {
     this.keys[e.code] = false;
   };
 
+  /** press/release a virtual button (touch controls) as if it were `code`
+   *  going down/up on the keyboard — same edge tracking, same first-key hook. */
+  touchButton(code: string, down: boolean): void {
+    if (down) {
+      this.onFirstKey?.();
+      if (!this.keys[code]) this.edges.add(code);
+      this.keys[code] = true;
+    } else {
+      this.keys[code] = false;
+    }
+  }
+
+  /** set the on-screen stick's deflection, `-1..1` per axis, or `null` when
+   *  the finger lifts (falls back to keyboard/arrow axis) */
+  setTouchAxis(axis: { x: number; y: number } | null): void {
+    if (axis) this.onFirstKey?.();
+    this.touchAxis = axis;
+  }
+
   pressed(code: string): boolean {
     return !!this.keys[code];
   }
@@ -53,8 +78,10 @@ export class Input {
     this.edges.clear();
   }
 
-  /** normalized WASD / arrows steering vector */
+  /** normalized WASD / arrows steering vector, or the live touch-stick
+   *  deflection while a finger is on it */
   moveAxis(): { x: number; y: number } {
+    if (this.touchAxis) return this.touchAxis;
     let x = 0;
     let y = 0;
     if (this.pressed("KeyA") || this.pressed("ArrowLeft")) x -= 1;
@@ -71,5 +98,10 @@ export class Input {
 
   get surging(): boolean {
     return this.pressed("ShiftLeft") || this.pressed("ShiftRight");
+  }
+
+  /** touch controls have no Escape key — same hook Escape uses */
+  requestPause(): void {
+    this.onPause?.();
   }
 }

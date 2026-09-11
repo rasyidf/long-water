@@ -1428,3 +1428,129 @@ body:not([data-screen="play"]) .hud.keyhint {
     transition: none;
   }
 }
+/* ---- touch controls (phones/tablets only, see TouchControls + isTouchDevice) ---- */
+.touch-controls {
+  inset: 0;
+}
+.touch-controls[hidden] {
+  display: none;
+}
+
+/* left-hand thumb zone: invisible until touched, then the base recentres to
+   wherever the finger landed ("floating" joystick) */
+.stick-zone {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: min(58vw, 420px);
+  height: min(52vh, 340px);
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
+  pointer-events: auto;
+  touch-action: none;
+}
+.stick-base {
+  position: absolute;
+  width: 92px;
+  height: 92px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: rgba(8, 20, 34, 0.45);
+  border: 1px solid rgba(159, 232, 213, 0.28);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.stick-base.show {
+  opacity: 1;
+}
+.stick-nub {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 42px;
+  height: 42px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at 34% 30%,
+    rgba(159, 232, 213, 0.55),
+    rgba(98, 199, 187, 0.32)
+  );
+  border: 1px solid rgba(159, 232, 213, 0.55);
+}
+
+.touch-buttons {
+  position: absolute;
+  right: calc(22px + env(safe-area-inset-right));
+  bottom: calc(22px + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  pointer-events: auto;
+}
+.touch-btn {
+  appearance: none;
+  width: 76px;
+  height: 76px;
+  border-radius: 50%;
+  border: 1px solid rgba(159, 232, 213, 0.3);
+  background: rgba(8, 20, 34, 0.5);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  color: var(--song);
+  font-size: 12px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    background 0.12s ease,
+    transform 0.12s ease;
+}
+.touch-btn.surge {
+  color: var(--krill);
+  border-color: rgba(255, 156, 91, 0.35);
+}
+.touch-btn.active {
+  transform: scale(0.92);
+  background: rgba(159, 232, 213, 0.22);
+}
+.touch-btn.surge.active {
+  background: rgba(255, 156, 91, 0.22);
+}
+
+.touch-pause {
+  position: absolute;
+  top: calc(14px + env(safe-area-inset-top));
+  right: calc(14px + env(safe-area-inset-right));
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  appearance: none;
+  border-radius: 50%;
+  border: 1px solid rgba(159, 232, 213, 0.28);
+  background: rgba(8, 20, 34, 0.4);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  pointer-events: auto;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+.touch-pause span {
+  width: 3px;
+  height: 14px;
+  border-radius: 2px;
+  background: var(--bone);
+  opacity: 0.75;
+}
+
+/* touch devices: keep the instrument panel clear of the thumb zone, and give
+   the pause button room under a notch/home-indicator */
+body.is-touch .instruments {
+  bottom: calc(26px + env(safe-area-inset-bottom));
+}

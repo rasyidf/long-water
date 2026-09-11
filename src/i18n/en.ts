@@ -30,6 +30,26 @@ export const en: Record<string, string> = {
   "keyhint.surge": "hold to surge, tap to tail-kick",
   "keyhint.sing": "sing, and call the pod in with you",
   "keyhint.pause": "pause",
+  // title card
+  "card.title.h1": "Long Water<br><em>one leg of the migration</em>",
+  "card.title.body":
+    "You are a blue whale, twenty-eight metres, moving south. Sunlight gives " +
+    "out around a hundred and eighty metres and the krill lives below that " +
+    "line, so you sing to find it. Singing costs air, and air is at the " +
+    "surface. Whales that answer you will fall in behind, and a pod sings " +
+    "further than one whale can.",
+  "card.title.start": "Press any key to take a breath",
+  "card.title.start.touch": "Touch the stick to take a breath",
+  "card.title.keys.wasd": "swim, with the momentum of a very large animal",
+  "card.title.keys.shift":
+    "hold to surge and build speed; tap for a tail-kick burst",
+  "card.title.keys.space": "sing, and call the pod in with you",
+  "card.title.keys.esc": "pause",
+  "card.title.keys.touch.stick":
+    "swim, with the momentum of a very large animal",
+  "card.title.keys.touch.surge":
+    "hold to surge and build speed; tap for a tail-kick burst",
+  "card.title.keys.touch.sing": "sing, and call the pod in with you",
 
   // trick / milestone popups (score layer)
   "trick.breach": "Breach",

@@ -1,5 +1,34 @@
 import { Game, type BootPhase } from "./core/Game";
+import { isTouchDevice } from "./core/touch";
 import { t } from "./i18n";
+
+// PWA: offline shell + installability. Safe to skip in dev (vite serves over
+// http, and browsers refuse to register a worker there) or if unsupported.
+if ("serviceWorker" in navigator && location.protocol === "https:") {
+  addEventListener("load", () => {
+    navigator.serviceWorker.register("/sw.js").catch((err) => {
+      console.warn("service worker registration failed", err);
+    });
+  });
+}
+
+// Touch devices: request fullscreen on the player's first tap. Must run from
+// a user gesture, so it's wired to the same tap that dismisses the title
+// card rather than fired from boot. A no-op once already fullscreen/installed
+// (standalone launches from the home-screen manifest are already fullscreen).
+if (isTouchDevice) {
+  const goFullscreen = (): void => {
+    removeEventListener("pointerdown", goFullscreen);
+    // `standalone` is Safari-only (home-screen launch), not in lib.dom types
+    const standalone = (navigator as Navigator & { standalone?: boolean })
+      .standalone;
+    if (document.fullscreenElement || standalone) return;
+    document.documentElement.requestFullscreen?.().catch(() => {
+      /* declined or unsupported — the game still plays, just chromed */
+    });
+  };
+  addEventListener("pointerdown", goFullscreen, { once: true });
+}
 
 const mount = document.getElementById("pixi-container") ?? document.body;
 const splash = document.getElementById("splash");

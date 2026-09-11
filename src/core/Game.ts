@@ -63,6 +63,7 @@ import { ScoreHud } from "../hud/ScoreHud";
 import { PauseMenu } from "../hud/PauseMenu";
 import { onQuality, quality } from "../state/Quality";
 import { FrontEnd } from "../menu/FrontEnd";
+import { TouchControls } from "../hud/TouchControls";
 
 /** Ordered boot milestones, reported to `boot`'s `onProgress` for the splash. */
 export type BootPhase = "renderer" | "world" | "systems" | "warmup" | "ready";
@@ -398,13 +399,13 @@ export class Game {
       almanac,
       new CameraSystem(),
 
-      ...renderSystems(),
+      ...renderSystems(), 
 
       new Hud(),
       new ScoreHud(),
       new DepthRuler(),
-      new Hints(),
-      this.pauseMenu,
+      new Hints(), 
+      new TouchControls(),  
     ];
   }
 

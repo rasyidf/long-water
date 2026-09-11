@@ -3,9 +3,21 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/png" href="/favicon.png" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
+    />
     <link rel="stylesheet" href="/style.css" />
     <title>Long Water - The Game</title>
+
+    <!-- PWA: installable, fullscreen on mobile home-screen launch -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="theme-color" content="#04080e" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Long Water" />
+    <link rel="apple-touch-icon" href="/icons/icon-192.png" />
   </head>
 
   <body>
@@ -105,6 +117,27 @@
     <!-- opening controls strip: shown a few seconds after a fresh New Game,
          replaces the old title-card ".keys" list -->
     <div class="hud keyhint" id="keyhint"></div>
+    <!-- Touch controls: hidden by default, revealed by TouchControls only on
+         a detected touch/coarse-pointer device. Feeds Input the same axis /
+         button state a keyboard would. -->
+    <div class="hud touch-controls" id="touchControls" hidden>
+      <div class="stick-zone" id="stickZone">
+        <div class="stick-base" id="stickBase">
+          <div class="stick-nub" id="stickNub"></div>
+        </div>
+      </div>
+      <div class="touch-buttons">
+        <button type="button" class="touch-btn sing" id="btnSing" aria-label="Sing">
+          <span>Sing</span>
+        </button>
+        <button type="button" class="touch-btn surge" id="btnSurge" aria-label="Surge">
+          <span>Surge</span>
+        </button>
+      </div>
+      <button type="button" class="touch-pause" id="btnPause" aria-label="Pause">
+        <span></span><span></span>
+      </button>
+    </div>
 
     <div class="menu" id="menu" hidden>
       <h2>Paused</h2>
