@@ -353,3 +353,145 @@ export function buildHullOutline(
   edge(0.01, true);
   return n;
 }
+
+/**
+ * One fin/fluke outline point in the form the view's `at(t, fwd, prp, out)`
+ * projector already expects — `prp` has the roll basis (`ven*cs - lat*sn`)
+ * baked in, so the caller doesn't need `at3`/`depth3` at all.
+ */
+export interface FinPoint {
+  t: number;
+  fwd: number;
+  prp: number;
+}
+
+/**
+ * Pectoral flipper blade, six points wound as one closed quadratic loop:
+ * root, leading-edge control, tip, trailing-edge control, root-back,
+ * root-fillet control (back to the root). Rooted low on the flank at a fixed
+ * `t`; `side` is ±1 for which side of the body. The blade lives on its own
+ * span/chord axes — span foreshortens at level roll, chord doesn't — which is
+ * what lets it read as a blade edge-on and its full slender self rolled onto
+ * its side.
+ */
+export function pectoralAnchors(
+  sec: Section,
+  t: number,
+  side: number,
+  cs: number,
+  sn: number,
+  featK: number,
+  out: FinPoint[],
+): void {
+  const rootV = sec.C + sec.A * 0.1; // low on the flank, a touch below the spine
+  const rootL = side * sec.B * 0.9;
+  const outL = side * (sec.B * 0.9 + 32 * featK); // lateral reach of the tip
+  const drop = 22 * featK; // and how far it hangs below the root
+  const aft = 38 * featK; // how far back it trails
+  // a hair of perspective, so the near flipper isn't a pixel-exact copy of
+  // the far one when the pair overlaps at level roll
+  const q = 1 + 0.05 * ((rootV * sn + rootL * cs) / Math.max(1, sec.A));
+
+  const pec = (i: number, u: number, fwd: number): void => {
+    const ven = rootV + drop * u * q;
+    const lat = rootL + (outL - rootL) * u * q;
+    out[i].t = t;
+    out[i].fwd = (-aft * u + fwd) * q;
+    out[i].prp = ven * cs - lat * sn;
+  };
+
+  pec(0, 0, 13 * featK); // root front
+  pec(1, 0.52, 5 * featK); // leading edge, gently convex
+  pec(2, 1, 0); // tip
+  pec(3, 0.55, -13 * featK); // trailing edge, gently concave
+  pec(4, 0, -13 * featK); // root back
+  pec(5, 0, -2 * featK); // root fillet
+}
+
+/**
+ * Dorsal fin blade, six points wound the same way as `pectoralAnchors`.
+ * Lives in the whale's mid-plane (`lat` is always 0), a blade set three-
+ * quarters of the way back and swept aft into a falcate hook. `sec` is the
+ * cross-section at the fin's root `t`; the points themselves sit at small
+ * `t` offsets fore/aft of it.
+ */
+export function dorsalAnchors(
+  sec: Section,
+  t: number,
+  juv: number,
+  cs: number,
+  featK: number,
+  out: FinPoint[],
+): void {
+  const h = (sec.A * 0.5 + 3 * featK) * (1 - 0.22 * juv);
+  // roots a hair inside the back, so the blade grows out of the body
+  const base = (sec.C - sec.A) * 0.94;
+
+  const pt = (i: number, dt: number, fwd: number, ven: number): void => {
+    out[i].t = t + dt;
+    out[i].fwd = fwd;
+    out[i].prp = ven * cs;
+  };
+
+  pt(0, 0.035, 0, base); // front root
+  pt(1, 0.015, 1 * featK, base - h * 0.62); // convex leading
+  pt(2, -0.05, -9 * featK, base - h); // tip, swept well aft — a falcate hook
+  pt(3, -0.05, -6 * featK, base - h * 0.34); // concave trailing
+  pt(4, -0.055, 0, base); // back root
+  pt(5, -0.01, 0, base * 0.55); // closing fillet
+}
+
+/**
+ * Angle of attack the fluke pitches to, from the pose itself: how far the
+ * tail stock bows off the chord through it (`jA`/`jB`/`jC`, the last three
+ * spine samples, `per` the perpendicular at the fluke root). Peaks at the
+ * ends of each stroke, so the blade flashes its face on every beat without
+ * any extra state to carry.
+ */
+export function flukePitch(per: Vec2, jA: Vec2, jB: Vec2, jC: Vec2): number {
+  const chl = Math.hypot(jA.x - jC.x, jA.y - jC.y) || 1;
+  const bow = ((jB.x - jC.x) * per.x + (jB.y - jC.y) * per.y) / chl;
+  return -clamp01(Math.abs(bow) * 1.9) * Math.sign(bow) * 0.5;
+}
+
+/**
+ * Fluke, eight points wound as one closed quadratic loop: root, then two
+ * blades either side of a centre notch, each with its own leading-edge
+ * control. The blades lie in the whale's horizontal plane, so from the side
+ * they are seen almost edge-on; `SPREAD` floors the span projection so an
+ * edge-on tail still reads as a tail (the one deliberate cheat in the roll).
+ * `pitch` (see `flukePitch`) tips the whole blade with the stroke, and
+ * `droop` trails the tips below the plane.
+ */
+export function flukeAnchors(
+  t: number,
+  cs: number,
+  sn: number,
+  pitch: number,
+  featK: number,
+  out: FinPoint[],
+): void {
+  const span = 34 * featK;
+  const sweep = 18 * featK;
+  const droop = 5 * featK; // tips trailing below the plane
+  const SPREAD = 0.36;
+  const snF = sn >= 0 ? Math.max(sn, SPREAD) : Math.min(sn, -SPREAD);
+  const cp = Math.cos(pitch);
+  const spn = Math.sin(pitch);
+
+  const pt = (i: number, fwd: number, ven: number, lat: number): void => {
+    const v = ven + droop * Math.abs(lat / span);
+    out[i].t = t;
+    out[i].fwd = fwd * cp + v * spn;
+    out[i].prp = (v * cp - fwd * spn) * cs - lat * snF;
+  };
+
+  pt(0, 2 * featK, 0, 0); // root
+  pt(1, 3 * featK, 0, -span * 0.6); // leading edge, root → near tip
+  pt(2, -sweep, 0, -span); // near tip
+  pt(3, -sweep * 1.35, 0, -span * 0.36); // concave trailing edge → notch
+  pt(4, -sweep * 0.3, 0, 0); // centre notch
+  pt(5, -sweep * 1.35, 0, span * 0.36); // concave trailing edge → far tip
+  pt(6, -sweep, 0, span); // far tip
+  pt(7, 3 * featK, 0, span * 0.6); // leading edge, far tip → root
+}

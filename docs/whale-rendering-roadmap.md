@@ -156,6 +156,26 @@ Ordered. Items 1–2 are the ones that could change what shipped.
   are still interleaved with Pixi curve calls (`moveTo`/`quadraticCurveTo`) in
   the view — pulling the fin *anchor points* out the same way, while leaving
   the actual `Graphics` drawing in the view, is what's left of #27.
+- #27 **done** (2026-09-11, same session): `pectoralAnchors`, `dorsalAnchors`,
+  `flukePitch`, and `flukeAnchors` are pure functions in `geometry.ts` that
+  return each blade's points as `FinPoint { t, fwd, prp }` — `prp` has the
+  roll basis baked in, so the view's old `at3`/`depth3` helpers (now deleted)
+  are no longer needed. `ProceduralWhaleView` fills a shared 8-slot scratch
+  pool (`this.finPts` → `this.finProj`, sized for the fluke's 8 points, the
+  largest of the three), then reads the projected coordinates straight into
+  `moveTo`/`quadraticCurveTo` — no interleaved computation left. `geometry.ts`
+  now has no Pixi or Camera coupling anywhere: `profile → topHalf/botHalf →
+  computeSection → buildHullOutline` and `pectoralAnchors`/`dorsalAnchors`/
+  `flukeAnchors` cover the whole `spine → outline points + fin anchors`
+  pipeline from the original #27 proposal. 12 new vitest cases (55 total, up
+  from 28 at the start of this doc's last "Progress" entry), plus the usual
+  `scripts/shot-rolls.mjs` byte-identical check — this time also covering
+  `wave=1` (stroke motion), since `flukePitch` is the one new piece of trig in
+  this pass and needed a moving spine to exercise it.
+  **#27 is now closed**: the geometry/renderer split proposed in the
+  architecture section is complete for the whale. What's left of the
+  outline/fin code in `ProceduralWhaleView` is Pixi drawing calls only
+  (`moveTo`/`quadraticCurveTo`/`fill`/`stroke`), not shape math.
 
 ---
 
@@ -400,8 +420,11 @@ Ordered. Items 1–2 are the ones that could change what shipped.
 - **Estimate:** Significant refactor; candidate for dedicated effort.
 
 ### 27. Extract geometry from Pixi first
-- **Status:** ◑ Partly done — pure shape math + `rollBasis` extracted to
-  `render/whale/geometry.ts` with tests; outline/fin assembly still in the view.
+- **Status:** ✅ Done (2026-09-11) — spine frame, cross-section, hull outline,
+  and pectoral/dorsal/fluke anchor math are all pure functions in
+  `render/whale/geometry.ts` with vitest coverage (55 cases). See "Next up —
+  whale visuals" → N5 for the full history. `ProceduralWhaleView` now only
+  does camera projection and `Graphics` drawing.
 - **Priority:** Enable testing and reduce renderer coupling
 - **Description:** Geometry calculation is entangled with Pixi rendering. Pull it out into pure functions.
 - **Proposal:** Pure function: `spine + options → outline points + fin anchors (in body space)`.
@@ -447,4 +470,4 @@ Use checkboxes above to mark progress. Update status from "Not started" → "In 
 
 For complex items, consider opening a GitHub issue linked back to this doc.
 
-**Last updated:** 2026-09-11 (#27 progress — spine-frame + cross-section math extracted, see “Next up — whale visuals”)
+**Last updated:** 2026-09-11 (#27 closed — full geometry/renderer split done, see “Next up — whale visuals”)

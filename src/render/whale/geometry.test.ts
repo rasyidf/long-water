@@ -11,12 +11,17 @@ import {
   buildTangents,
   computeSection,
   cosVisible,
+  dorsalAnchors,
   edgeBot,
   edgeTop,
   faceAt,
+  type FinPoint,
+  flukeAnchors,
+  flukePitch,
   hash01,
   latK,
   mouthPsi,
+  pectoralAnchors,
   profile,
   prpAt,
   rollBasis,
@@ -26,6 +31,10 @@ import {
   topFrac,
   topHalf,
 } from "./geometry";
+
+function finPool(n: number): FinPoint[] {
+  return Array.from({ length: n }, () => ({ t: 0, fwd: 0, prp: 0 }));
+}
 
 describe("profile", () => {
   it("keeps a rounded tip at the rostrum rather than closing to a needle", () => {
@@ -426,6 +435,98 @@ describe("buildHullOutline", () => {
     });
     const { pts, n } = buildOutline(sp, 20);
     expect(hasSelfIntersection(pts, n)).toBe(false);
+  });
+});
+
+describe("pectoralAnchors", () => {
+  const sec: Section = { A: 10, C: 0, B: 5, R: 0, D: 0 };
+
+  it("shares t across every point and mirrors the fore/aft root points", () => {
+    const pts = finPool(6);
+    pectoralAnchors(sec, 0.27, 1, 1, 0, 1, pts);
+    for (const p of pts) expect(p.t).toBe(0.27);
+    // root front (0) and root back (4) are both u=0 — same depth off the
+    // spine, mirrored fore/aft
+    expect(pts[4].prp).toBeCloseTo(pts[0].prp, 10);
+    expect(pts[4].fwd).toBeCloseTo(-pts[0].fwd, 10);
+  });
+
+  it("reaches further aft at the tip than at the root", () => {
+    const pts = finPool(6);
+    pectoralAnchors(sec, 0.27, 1, 1, 0, 1, pts);
+    expect(Math.abs(pts[2].fwd)).toBeGreaterThan(Math.abs(pts[0].fwd));
+  });
+
+  it("root points don't depend on side at level roll (lat doesn't reach the screen when sn=0)", () => {
+    const a = finPool(6);
+    const b = finPool(6);
+    pectoralAnchors(sec, 0.27, 1, 1, 0, 1, a);
+    pectoralAnchors(sec, 0.27, -1, 1, 0, 1, b);
+    expect(b[0].prp).toBeCloseTo(a[0].prp, 10);
+    expect(b[4].prp).toBeCloseTo(a[4].prp, 10);
+  });
+});
+
+describe("dorsalAnchors", () => {
+  const sec: Section = { A: 10, C: -8, B: 5, R: 0, D: 0 };
+
+  it("offsets the front/back roots fore and aft of the fin's t, at the same depth", () => {
+    const pts = finPool(6);
+    dorsalAnchors(sec, 0.74, 0, 1, 1, pts);
+    expect(pts[0].t).toBeCloseTo(0.775, 10);
+    expect(pts[4].t).toBeCloseTo(0.685, 10);
+    expect(pts[0].prp).toBeCloseTo(pts[4].prp, 10);
+  });
+
+  it("stands the tip proud of the root, out of the body", () => {
+    const pts = finPool(6);
+    dorsalAnchors(sec, 0.74, 0, 1, 1, pts);
+    expect(Math.abs(pts[2].prp)).toBeGreaterThan(Math.abs(pts[0].prp));
+  });
+});
+
+describe("flukePitch", () => {
+  it("is zero when the tail stock is straight", () => {
+    const per: Vec2 = { x: 1, y: 0 };
+    const jA: Vec2 = { x: 0, y: 0 };
+    const jB: Vec2 = { x: 0, y: 1 };
+    const jC: Vec2 = { x: 0, y: 2 };
+    expect(flukePitch(per, jA, jB, jC)).toBeCloseTo(0, 10);
+  });
+
+  it("flips sign with the bow direction and saturates at magnitude 0.5", () => {
+    const per: Vec2 = { x: 1, y: 0 };
+    const jA: Vec2 = { x: 0, y: 0 };
+    const jC: Vec2 = { x: 0, y: 2 };
+    const pPos = flukePitch(per, jA, { x: 1, y: 1 }, jC); // bows toward +per
+    const pNeg = flukePitch(per, jA, { x: -1, y: 1 }, jC); // bows toward -per
+    expect(pPos).toBeLessThan(0);
+    expect(pNeg).toBeGreaterThan(0);
+
+    const pSharp = flukePitch(per, jA, { x: 100, y: 0.5 }, jC);
+    expect(Math.abs(pSharp)).toBeCloseTo(0.5, 6);
+  });
+});
+
+describe("flukeAnchors", () => {
+  it("shares t across every point", () => {
+    const pts = finPool(8);
+    flukeAnchors(0.94, 1, 1, 0, 1, pts);
+    for (const p of pts) expect(p.t).toBe(0.94);
+  });
+
+  it("gives the near and far tips the same fore/aft offset, mirrored around the droop", () => {
+    const pts = finPool(8);
+    flukeAnchors(0.94, 1, 1, 0, 1, pts); // cs=1, sn=1, pitch=0, featK=1
+    expect(pts[2].fwd).toBeCloseTo(pts[6].fwd, 10);
+    // droop = 5 * featK; the two tips sit symmetrically either side of it
+    expect(pts[2].prp + pts[6].prp).toBeCloseTo(2 * 5, 6);
+  });
+
+  it("floors the span projection at SPREAD so a dead-abeam tail still reads as a tail", () => {
+    const pts = finPool(8);
+    flukeAnchors(0.94, 1, 0, 0, 1, pts); // sn=0 (level roll — the fluke plane edge-on)
+    expect(pts[2].prp).toBeCloseTo(17.24, 2);
   });
 });
 

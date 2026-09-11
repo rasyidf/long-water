@@ -10,11 +10,16 @@ import {
   buildHullOutline,
   buildTangents,
   computeSection,
+  dorsalAnchors,
   edgeBot as sectionEdgeBot,
   edgeTop as sectionEdgeTop,
   faceAt as sectionFaceAt,
+  type FinPoint,
+  flukeAnchors,
+  flukePitch,
   hash01,
   mouthPsi,
+  pectoralAnchors,
   prpAt as sectionPrpAt,
   rollBasis,
   type RollBasis,
@@ -76,6 +81,16 @@ export class ProceduralWhaleView implements WhaleView {
   private readonly rb: RollBasis = { cs: 1, sn: 0 };
   /** scratch cross-section, memoised on `t` within a single draw */
   private readonly sec: Section = { A: 0, C: 0, B: 0, R: 0, D: 0 };
+  /** scratch fin/fluke anchor points — 8 is the fluke's count, the largest */
+  private readonly finPts: FinPoint[] = Array.from({ length: 8 }, () => ({
+    t: 0,
+    fwd: 0,
+    prp: 0,
+  }));
+  private readonly finProj: Vec2[] = Array.from({ length: 8 }, () => ({
+    x: 0,
+    y: 0,
+  }));
 
   // Countershade palette, rebuilt only when the skin / belly inputs change so a
   // pod sharing one skin colour costs a single `mixColor` sweep per frame.
@@ -196,19 +211,18 @@ export class ProceduralWhaleView implements WhaleView {
       return out;
     };
 
-    /** screen-space point from a body-frame offset: `ven` toward the belly,
-     * `lat` out the whale's side. Both are rolled by the basis above, so a fin
-     * that lives out on the flank swings through the roll on its own. */
-    const at3 = (
-      t: number,
-      fwd: number,
-      ven: number,
-      lat: number,
-      out: Vec2,
-    ): Vec2 => at(t, fwd, ven * cs - lat * sn, out);
-
-    /** how far toward the camera a body-frame offset sits; >0 is the near side */
-    const depth3 = (ven: number, lat: number): number => ven * sn + lat * cs;
+    /** project every `FinPoint` in `this.finPts[0..count)` through `at()` into
+     * `this.finProj`, for the fin/fluke blade outlines below */
+    const projectFinPts = (count: number): void => {
+      for (let i = 0; i < count; i++) {
+        at(
+          this.finPts[i].t,
+          this.finPts[i].fwd,
+          this.finPts[i].prp,
+          this.finProj[i],
+        );
+      }
+    };
 
     // ---- cross-section, memoised on `t` ------------------------------------
     // Callers hit the same `t` two or three times in a row (top edge, bottom
@@ -323,42 +337,13 @@ export class ProceduralWhaleView implements WhaleView {
       const pg = pick(near ? "nearPectoral" : "farPectoral");
       const t = 0.27;
       sect(t);
-      const rootV = this.sec.C + this.sec.A * 0.1; // low on the flank, a touch below the spine
-      const rootL = side * this.sec.B * 0.9;
-      const outL = side * (this.sec.B * 0.9 + 32 * featK); // lateral reach of the tip
-      const drop = 22 * featK; // and how far it hangs below the root
-      const aft = 38 * featK; // how far back it trails
-      // a hair of perspective, so the near flipper isn't a pixel-exact copy of
-      // the far one when the pair overlaps at level roll
-      const q = 1 + 0.05 * (depth3(rootV, rootL) / Math.max(1, this.sec.A));
-
-      /** a point on the blade: `u` out along the span, `fwd` its chord offset.
-       * Keeping the span and the chord as separate axes is what lets the
-       * flipper read as a blade at level roll (span foreshortened, chord not)
-       * and as its full slender self once the whale rolls onto its side. */
-      const pec = (u: number, fwd: number, out: Vec2): Vec2 =>
-        at3(
-          t,
-          (-aft * u + fwd) * q,
-          rootV + drop * u * q,
-          rootL + (outL - rootL) * u * q,
-          out,
-        );
-
-      const rfX = pec(0, 13 * featK, this.w0).x;
-      const rfY = this.w0.y;
-      const rbX = pec(0, -13 * featK, this.w0).x;
-      const rbY = this.w0.y;
-      const tipX = pec(1, 0, this.w0).x;
-      const tipY = this.w0.y;
-
-      pg.moveTo(rfX, rfY);
-      pec(0.52, 5 * featK, this.w0); // leading edge, gently convex
-      pg.quadraticCurveTo(this.w0.x, this.w0.y, tipX, tipY);
-      pec(0.55, -13 * featK, this.w0); // trailing edge, gently concave
-      pg.quadraticCurveTo(this.w0.x, this.w0.y, rbX, rbY);
-      pec(0, -2 * featK, this.w0); // root fillet
-      pg.quadraticCurveTo(this.w0.x, this.w0.y, rfX, rfY);
+      pectoralAnchors(this.sec, t, side, cs, sn, featK, this.finPts);
+      projectFinPts(6);
+      const P = this.finProj;
+      pg.moveTo(P[0].x, P[0].y);
+      pg.quadraticCurveTo(P[1].x, P[1].y, P[2].x, P[2].y); // root → tip
+      pg.quadraticCurveTo(P[3].x, P[3].y, P[4].x, P[4].y); // tip → root back
+      pg.quadraticCurveTo(P[5].x, P[5].y, P[0].x, P[0].y); // root fillet, close
       pg.closePath();
       // the underside is pale, so a flipper seen from below lightens
       const under = clamp01(sn) * 0.42;
@@ -377,24 +362,13 @@ export class ProceduralWhaleView implements WhaleView {
       const dg = pick(near ? "dorsal" : "farDorsal");
       const t = 0.74;
       sect(t);
-      const h = (this.sec.A * 0.5 + 3 * featK) * (1 - 0.22 * juv);
-      // roots a hair inside the back, so the blade grows out of the body
-      const base = (this.sec.C - this.sec.A) * 0.94;
-      const frX = at3(t + 0.035, 0, base, 0, this.w0).x;
-      const frY = this.w0.y;
-      const bkX = at3(t - 0.055, 0, base, 0, this.w0).x;
-      const bkY = this.w0.y;
-      // the tip is swept well aft of the root — a falcate hook, not a triangle
-      const tpX = at3(t - 0.05, -9 * featK, base - h, 0, this.w0).x;
-      const tpY = this.w0.y;
-
-      dg.moveTo(frX, frY);
-      at3(t + 0.015, 1 * featK, base - h * 0.62, 0, this.w0); // convex leading
-      dg.quadraticCurveTo(this.w0.x, this.w0.y, tpX, tpY);
-      at3(t - 0.05, -6 * featK, base - h * 0.34, 0, this.w0); // concave trailing
-      dg.quadraticCurveTo(this.w0.x, this.w0.y, bkX, bkY);
-      at3(t - 0.01, 0, base * 0.55, 0, this.w0);
-      dg.quadraticCurveTo(this.w0.x, this.w0.y, frX, frY);
+      dorsalAnchors(this.sec, t, juv, cs, featK, this.finPts);
+      projectFinPts(6);
+      const P = this.finProj;
+      dg.moveTo(P[0].x, P[0].y);
+      dg.quadraticCurveTo(P[1].x, P[1].y, P[2].x, P[2].y); // front root → tip
+      dg.quadraticCurveTo(P[3].x, P[3].y, P[4].x, P[4].y); // tip → back root
+      dg.quadraticCurveTo(P[5].x, P[5].y, P[0].x, P[0].y); // closing fillet
       dg.closePath();
       dg.fill({ color: near ? this.cFin : this.cDark, alpha });
     };
@@ -414,17 +388,6 @@ export class ProceduralWhaleView implements WhaleView {
     {
       const fg = pick("fluke");
       const rootT = BODY_END;
-      sect(rootT);
-      const span = 34 * featK;
-      const sweep = 18 * featK;
-      const droop = 5 * featK; // tips trailing below the plane
-      // Seen from dead abeam the blades would foreshorten to a hairline. Hold a
-      // floor under the span projection so the tail always reads as a tail —
-      // the one deliberate cheat in the roll, and the amount a real fluke shows
-      // anyway once you are a few degrees off its plane.
-      const SPREAD = 0.36;
-      const snF = sn >= 0 ? Math.max(sn, SPREAD) : Math.min(sn, -SPREAD);
-
       // Angle of attack from the pose itself: how far the tail stock bows off
       // the chord through it. It peaks at the ends of each stroke, so the blade
       // flashes its face on every beat without any extra state to carry.
@@ -432,41 +395,15 @@ export class ProceduralWhaleView implements WhaleView {
       const jA = sp[last];
       const jB = sp[Math.max(0, last - 2)];
       const jC = sp[Math.max(0, last - 4)];
-      const chl = Math.hypot(jA.x - jC.x, jA.y - jC.y) || 1;
-      const bow =
-        ((jB.x - jC.x) * this.per.x + (jB.y - jC.y) * this.per.y) / chl;
-      const pitch = -clamp01(Math.abs(bow) * 1.9) * Math.sign(bow) * 0.5;
-      const cp = Math.cos(pitch);
-      const spn = Math.sin(pitch);
-      /** one fluke point: `lat` out the span, `fwd`/`ven` in the pitched chord */
-      const fluke = (fwd: number, ven: number, lat: number): Vec2 => {
-        const v = ven + droop * Math.abs(lat / span);
-        const fw = fwd * cp + v * spn;
-        const vn = v * cp - fwd * spn;
-        return at(rootT, fw, vn * cs - lat * snF, this.w0);
-      };
-
-      const rx = fluke(2 * featK, 0, 0).x;
-      const ry = this.w0.y;
-      fluke(-sweep, 0, -span);
-      const topX = this.w0.x;
-      const topY = this.w0.y;
-      fluke(-sweep * 0.3, 0, 0);
-      const notchX = this.w0.x;
-      const notchY = this.w0.y;
-      fluke(-sweep, 0, span);
-      const botX = this.w0.x;
-      const botY = this.w0.y;
-
-      fg.moveTo(rx, ry);
-      fluke(3 * featK, 0, -span * 0.6); // leading edge, root → tip
-      fg.quadraticCurveTo(this.w0.x, this.w0.y, topX, topY);
-      fluke(-sweep * 1.35, 0, -span * 0.36); // concave trailing edge
-      fg.quadraticCurveTo(this.w0.x, this.w0.y, notchX, notchY);
-      fluke(-sweep * 1.35, 0, span * 0.36);
-      fg.quadraticCurveTo(this.w0.x, this.w0.y, botX, botY);
-      fluke(3 * featK, 0, span * 0.6);
-      fg.quadraticCurveTo(this.w0.x, this.w0.y, rx, ry);
+      const pitch = flukePitch(this.per, jA, jB, jC);
+      flukeAnchors(rootT, cs, sn, pitch, featK, this.finPts);
+      projectFinPts(8);
+      const P = this.finProj;
+      fg.moveTo(P[0].x, P[0].y);
+      fg.quadraticCurveTo(P[1].x, P[1].y, P[2].x, P[2].y); // root → near tip
+      fg.quadraticCurveTo(P[3].x, P[3].y, P[4].x, P[4].y); // near tip → notch
+      fg.quadraticCurveTo(P[5].x, P[5].y, P[6].x, P[6].y); // notch → far tip
+      fg.quadraticCurveTo(P[7].x, P[7].y, P[0].x, P[0].y); // far tip → root
       fg.closePath();
       // the flukes' undersides are pale like the belly
       fg.fill({
