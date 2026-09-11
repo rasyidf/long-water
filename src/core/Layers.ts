@@ -82,6 +82,10 @@ export class Layers {
 
   readonly vignette = new Sprite();
 
+  /** the blur behind the glow layer, kept so quality can switch it on/off */
+  private bloom: BlurFilter | null = null;
+  private bloomOn = false;
+
   constructor() {
     this.shafts.blendMode = "add";
     this.caustics.blendMode = "add";
@@ -89,7 +93,8 @@ export class Layers {
     this.glow.blendMode = "add";
     this.glow.addChild(this.glowGraphics);
     try {
-      this.glow.filters = [new BlurFilter({ strength: 12, quality: 3 })];
+      this.bloom = new BlurFilter({ strength: 12, quality: 3 });
+      this.setBloom(true);
     } catch {
       /* filters unsupported — still readable without the bloom */
     }
@@ -116,5 +121,13 @@ export class Layers {
       this.glow,
     );
     this.overlay.addChild(this.vignette);
+  }
+
+  /** graphics quality: the blur is a full-screen pass, so it can be dropped
+   * and the glow drawn sharp (cheap no-op when unchanged) */
+  setBloom(on: boolean): void {
+    if (!this.bloom || on === this.bloomOn) return;
+    this.bloomOn = on;
+    this.glow.filters = on ? [this.bloom] : [];
   }
 }

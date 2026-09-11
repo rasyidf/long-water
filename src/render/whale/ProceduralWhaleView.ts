@@ -2,6 +2,7 @@ import type { Graphics } from "pixi.js";
 import type { Camera } from "../../core/Camera";
 import { clamp01, lerp, smoothstep, type Vec2 } from "../../core/math";
 import { mixColor } from "../color";
+import { detailK, quality } from "../../state/Quality";
 import {
   bandAt as sectionBandAt,
   bodyPoint,
@@ -153,10 +154,13 @@ export class ProceduralWhaleView implements WhaleView {
     buildTangents(sp, this.tan, last);
 
     const px = scale * cam.scale;
-    // smooth LOD/visibility ramps so nothing pops as the camera scale drifts
-    const detail = smoothstep(0.08, 0.26, px); // fins + hull resolution
-    const faceDetail = smoothstep(0.24, 0.5, px); // eye, mouth, pleats
-    const mottle = smoothstep(0.22, 0.48, px); // dappled skin + rim light
+    // smooth LOD/visibility ramps so nothing pops as the camera scale drifts;
+    // the graphics-quality dial scales them all down together, so a low-end
+    // machine draws the same animal with less skin work and a coarser hull
+    const qd = detailK(quality().creatureDetail);
+    const detail = smoothstep(0.08, 0.26, px) * qd; // fins + hull resolution
+    const faceDetail = smoothstep(0.24, 0.5, px) * qd; // eye, mouth, pleats
+    const mottle = smoothstep(0.22, 0.48, px) * qd; // dappled skin + rim light
 
     // Hull resolution snaps to a few fixed tiers, so sample points don't crawl
     // as the camera scale drifts. (True hysteresis would need per-whale state;

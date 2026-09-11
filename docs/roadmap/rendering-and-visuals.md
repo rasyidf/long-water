@@ -49,6 +49,32 @@ progresses; use this doc only for cross-cutting sequencing.
    ocean item (`ocean-rendering-roadmap.md` #14) is explicitly lower-priority than the whale's —
    measure after #1 ships, since a static sky may not be worth Mesh-ing at all.
 
+## Graphics quality settings (shipped 2026-09-11)
+
+`src/state/Quality.ts` is the one store for fidelity-vs-frame-rate. Three presets (low / medium /
+high) plus every individual dial, exposed in the shared Options panel — reachable from the title
+screen and the pause menu — so a low-end machine can switch the expensive blocks off one at a time
+mid-run. Renderers read `quality()` every frame; the two renderer-level settings (render scale,
+glow bloom) go through `onQuality`. Persists to `localStorage["long-water:quality"]`; the first
+run picks a preset from a coarse device sniff. The dev tools pin `high` via `overrideQuality`
+without touching the saved choice.
+
+What the dials drive:
+
+| dial | where it lands |
+|---|---|
+| render scale | `Game` sets `renderer.resolution` live — the biggest lever on an integrated GPU |
+| glow bloom | `Layers.setBloom` swaps the blur filter in / out |
+| god-rays, caustics, clouds, stars & gulls, foam / glitter / spray, sunlit water | `BackgroundRenderer.effective()` scales the ocean params and `visible()` gates whole draw blocks |
+| drifting silt, thermocline, marine snow, bioluminescence | same, on the `water` group |
+| creature detail | `ProceduralWhaleView` / `ProceduralSquidView` LOD ramps × `detailK` |
+| reef detail | `ProceduralCoralView` LOD ramp × `detailK` |
+| far ridge & rubble | `TerrainRenderer` skips the parallax ridge and the scree |
+
+Adding a dial: one field in `QualitySettings`, a value in each preset, a row in `QUALITY_ITEMS`,
+a `quality.<key>` string, and the read in whichever renderer it drives. The options panel builds
+itself from `QUALITY_ITEMS`.
+
 ## Backlog items that don't fit any existing doc
 
 - **Kelp forest zone** (`reef-and-wfc-notes.md` §3) — a new terrain-adjacent biome with its own

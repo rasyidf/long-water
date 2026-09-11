@@ -19,6 +19,7 @@ import type { Camera } from "../../core/Camera";
 import { hash01, smoothstep, type Vec2 } from "../../core/math";
 import type { Coral } from "../../state/Fauna";
 import { mixColor } from "../color";
+import { detailK, quality } from "../../state/Quality";
 import { sunLean } from "../ocean/params";
 import type { CoralSection, CoralView, CoralDrawOptions } from "./CoralView";
 import {
@@ -205,7 +206,9 @@ export class ProceduralCoralView implements CoralView {
     this.litSide = sunLean() > 0 ? -1 : 1;
     // smooth LOD ramp on on-screen height so veins / buds / polyps fade in
     // instead of popping as the camera zooms
-    this.detail = smoothstep(10, 56, this.h);
+    // the graphics-quality dial scales the ramp, so a low-end machine keeps
+    // every silhouette and loses the veins / buds / polyps first
+    this.detail = smoothstep(10, 56, this.h) * detailK(quality().reefDetail);
     this.palette(kind, gn.tone, opts.light, opts.sonar, p);
 
     const h = this.h;

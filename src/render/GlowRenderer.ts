@@ -17,6 +17,7 @@ import {
   pulseWave,
 } from "./squid/geometry";
 import { squidLook } from "./squid/params";
+import { quality } from "../state/Quality";
 
 export class GlowRenderer implements System {
   readonly name = "render:glow";
@@ -34,6 +35,7 @@ export class GlowRenderer implements System {
 
   render(ctx: GameContext): void {
     const { camera: cam, layers: L, world } = ctx;
+    L.setBloom(quality().bloom);
     const sc = cam.scale;
     const [left, right] = cam.visibleX(300);
     const c0 = Math.max(0, Math.floor(left / COL));

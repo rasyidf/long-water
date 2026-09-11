@@ -24,6 +24,7 @@ import type { Camera } from "../../core/Camera";
 import { clamp01, smoothstep, type Vec2 } from "../../core/math";
 import type { Squid } from "../../state/Squid";
 import { mixColor } from "../color";
+import { detailK, quality } from "../../state/Quality";
 import {
   buildFin,
   buildMantleOutline,
@@ -271,8 +272,10 @@ export class ProceduralSquidView implements SquidView {
 
     // smooth LOD ramps on the on-screen size so nothing pops as the camera
     // scale drifts; `k` is pixels per local unit
-    const detail = smoothstep(0.06, 0.28, k); // limb samples, hull steps
-    const fine = smoothstep(0.22, 0.5, k); // flecks, rim, eye highlight
+    // the graphics-quality dial scales both ramps, same as the whale
+    const qd = detailK(quality().creatureDetail);
+    const detail = smoothstep(0.06, 0.28, k) * qd; // limb samples, hull steps
+    const fine = smoothstep(0.22, 0.5, k) * qd; // flecks, rim, eye highlight
     const STEPS = Math.max(
       12,
       Math.min(MAX_STEPS, Math.round((12 + 12 * detail) / 4) * 4),

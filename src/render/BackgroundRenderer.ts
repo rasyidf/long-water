@@ -26,6 +26,8 @@ import {
   type OceanParams,
 } from "./ocean/params";
 import { skyLight, skyPalette } from "./ocean/sky";
+import type { OceanDrawOptions, OceanSection } from "./ocean/OceanView";
+import { quality } from "../state/Quality";
 
 /** the deep column gradient spans this many world units of depth */
 const COLUMN_DEPTH = 3200;
@@ -54,6 +56,14 @@ export class BackgroundRenderer implements System {
   private live: OceanParams = cloneOceanParams();
   /** the absorption the column textures were last baked at */
   private bakedAbsorption = NaN;
+  /** `live` (or the tools override) with the graphics-quality dials folded
+   * in, rewritten in place each frame so nothing is allocated */
+  private readonly eff: OceanParams = cloneOceanParams();
+  /** this frame's dev-tools section filter, composed with the quality gate */
+  private base: OceanDrawOptions = {};
+  private readonly gated: OceanDrawOptions = {
+    show: (s) => this.visible(s),
+  };
   /** every canvas-backed texture this instance created, so a rebuild's fresh
    *  instance doesn't leak the old one's GPU upload (see `Game`'s run rebuild) */
   private owned: Texture[] = [];
@@ -136,6 +146,56 @@ export class BackgroundRenderer implements System {
     }
   }
 
+  /**
+   * `src` seen through the graphics-quality dials: strengths scaled, counts
+   * reduced, whole blocks zeroed. Copied into one reused object so the
+   * renderers never see a half-scaled param set and nothing is allocated.
+   */
+  private effective(src: OceanParams): OceanParams {
+    const q = quality();
+    const e = this.eff;
+    Object.assign(e.wave, src.wave);
+    Object.assign(e.sky, src.sky);
+    Object.assign(e.column, src.column);
+    Object.assign(e.water, src.water);
+    e.wave.foamAmount *= q.surfaceDetail;
+    e.sky.glitter *= q.surfaceDetail;
+    e.sky.cloudDecks = Math.max(1, Math.round(src.sky.cloudDecks * q.clouds));
+    e.column.shaftStrength *= q.godRays;
+    e.column.causticStrength *= q.caustics;
+    e.column.slabs =
+      q.slabs <= 0 ? 0 : Math.max(1, Math.round(src.column.slabs * q.slabs));
+    e.water.murk *= q.murk;
+    if (!q.thermocline) e.water.thermoclineStrength = 0;
+    e.water.snowDensity *= q.snow;
+    e.water.sparks *= q.sparks;
+    return e;
+  }
+
+  /** the draw-section gate: the dev-tools filter first, then the blocks the
+   * quality dials have switched off outright */
+  private visible(s: OceanSection): boolean {
+    if (this.base.show && !this.base.show(s)) return false;
+    const q = quality();
+    switch (s) {
+      case "clouds":
+        return q.clouds > 0;
+      case "stars":
+      case "birds":
+        return q.skyLife;
+      case "spray":
+        return q.surfaceDetail >= 0.5;
+      case "shafts":
+        return q.godRays > 0;
+      case "caustics":
+        return q.caustics > 0;
+      case "slabs":
+        return q.slabs > 0;
+      default:
+        return true;
+    }
+  }
+
   private stopColor(z: Zone, c: number | null): number {
     if (c === null) return z.shelf;
     if (c === -1) return mixColor(z.shelf, z.deep, 0.35);
@@ -149,12 +209,15 @@ export class BackgroundRenderer implements System {
     const VH = cam.vh;
     const y0 = cam.sy(0);
     const y1 = cam.sy(COLUMN_DEPTH);
-    const p = this.params();
+    const src = this.params();
     // the day turns only on the game's own copy — the tools run their own loop
-    if (p === this.live && p.water.dayLength > 0) {
-      p.sky.timeOfDay = (p.sky.timeOfDay + clock.dt / p.water.dayLength) % 1;
+    if (src === this.live && src.water.dayLength > 0) {
+      src.sky.timeOfDay =
+        (src.sky.timeOfDay + clock.dt / src.water.dayLength) % 1;
     }
-    const draw = oceanDrawOptions();
+    const p = this.effective(src);
+    this.base = oceanDrawOptions();
+    const draw = this.gated;
     const pal = skyPalette(p.sky.timeOfDay);
     const day = skyLight(p.sky.timeOfDay).daylight;
 

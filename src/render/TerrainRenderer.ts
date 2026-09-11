@@ -21,6 +21,7 @@ import { clamp01, hash01 } from "../core/math";
 import type { GameContext } from "../core/GameContext";
 import type { System } from "../core/System";
 import { mixColor } from "./color";
+import { quality } from "../state/Quality";
 
 /** the far ridge scrolls at this fraction of the camera's x motion */
 const FAR_PARALLAX = 0.55;
@@ -67,7 +68,7 @@ export class TerrainRenderer implements System {
     const sc = cam.scale;
 
     // ---------- far parallax ridge ----------
-    {
+    if (quality().terrainDetail) {
       const g = L.terrainFar;
       g.clear();
       const camFarX = cam.x * FAR_PARALLAX;
@@ -92,6 +93,8 @@ export class TerrainRenderer implements System {
       for (let c = first; c < last; c++)
         g.lineTo(sx((c + 0.5) * COL), cam.sy((shape(c) + shape(c + 1)) / 2));
       g.stroke({ width: 1.5, color: FAR_RIM, alpha: 0.22 });
+    } else {
+      L.terrainFar.clear();
     }
 
     // ---------- near seabed ----------
@@ -133,7 +136,7 @@ export class TerrainRenderer implements System {
       g.fill(SHOULDER_FILL);
 
       // rubble on the steep faces
-      this.scree(g, cam, first, last, at);
+      if (quality().terrainDetail) this.scree(g, cam, first, last, at);
 
       // edges: a bright mint rim on the sunlit shelf that fades out at the lip,
       // plus a faint cool edge on near-vertical walls (trench lips only)
