@@ -12,13 +12,16 @@ export class ParticleSystem implements System {
   init(ctx: GameContext): void {
     ctx.bus.on("fx:bubbles", (e) => {
       const spread = e.spread ?? 0;
+      // splash bursts scale taller/wider/longer-lived with `power` — a bare
+      // splashdown and a towering breach shouldn't throw the same plume
+      const pw = e.splash ? 1 + (e.power ?? 0.4) : 1;
       for (let i = 0; i < e.count; i++)
         ctx.particles.bubbles.push({
           x: e.x + (spread ? range(-spread, spread) : 0),
           y: e.y,
-          vx: e.splash ? range(-190, 190) : range(-40, 40),
-          vy: e.splash ? range(-440, -40) : range(-120, -30),
-          life: e.splash ? range(0.4, 1.5) : range(0.6, 1.4),
+          vx: e.splash ? range(-190, 190) * pw : range(-40, 40),
+          vy: e.splash ? range(-440, -40) * pw : range(-120, -30),
+          life: e.splash ? range(0.4, 1.5) * (0.7 + 0.3 * pw) : range(0.6, 1.4),
           r: e.splash ? range(2, 8) : range(1, 3),
           splash: e.splash,
         });

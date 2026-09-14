@@ -120,6 +120,8 @@ export interface GameEvents {
     count: number;
     splash: boolean;
     spread?: number;
+    /** 0..1, scales a splash burst's height/spread/lifetime; default ~0.4 */
+    power?: number;
   };
 }
 

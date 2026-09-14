@@ -99,11 +99,49 @@ export class WhaleSystem implements System {
     for (const w of pod.whales) {
       if (this.simulate) {
         const intent = this.podBrain.intent(w, ctx, crew, dt);
-        stepLocomotion(w.body, intent, podCaps(w), ctx.world, ctx.clock, dt);
+        const out = stepLocomotion(
+          w.body,
+          intent,
+          podCaps(w),
+          ctx.world,
+          ctx.clock,
+          dt,
+        );
+        this.emitPodSurface(ctx, out, w.body.x);
       } else {
         w.body.wag += dt * 1.6; // idle breathe so gallery bodies still undulate
       }
       stepPose(w.body, dt);
+    }
+  }
+
+  /** a pod whale's own breach — visible/audible, but no score or camera shot;
+   *  those are reserved for the player's tricks */
+  private emitPodSurface(ctx: GameContext, out: LocoOut, x: number): void {
+    if (!out.crossedUp && !out.crossedDown) return;
+    if (Math.abs(x - ctx.camera.x) > 4000) return; // off-screen, skip the fx
+
+    const { bus } = ctx;
+    if (out.crossedUp > 140) {
+      bus.emit("fx:bubbles", {
+        x,
+        y: 0,
+        count: 26,
+        splash: true,
+        spread: 130,
+        power: 0.35,
+      });
+      bus.emit("audio:call", { f0: 260, f1: 170, dur: 0.3, vol: 0.03 });
+    }
+    if (out.crossedDown) {
+      bus.emit("fx:bubbles", {
+        x,
+        y: 0,
+        count: 20,
+        splash: true,
+        spread: 140,
+        power: 0.35,
+      });
     }
   }
 
@@ -179,8 +217,14 @@ export class WhaleSystem implements System {
         count: 40 * p + 8,
         splash: true,
         spread: 150,
+        power: p,
       });
-      bus.emit("audio:call", { f0: 300, f1: 190, dur: 0.35, vol: 0.05 });
+      bus.emit("audio:call", {
+        f0: 300 - p * 60,
+        f1: 190 - p * 40,
+        dur: 0.35 + p * 0.25,
+        vol: 0.05 + p * 0.05,
+      });
       bus.emit("whale:surfaced", {
         impactVy: -out.crossedUp,
         pos: { x, y: 0 },
@@ -196,8 +240,16 @@ export class WhaleSystem implements System {
       }
     }
     if (out.crossedDown) {
+      const ep = Math.min(1, ctx.whale.body.speed / 500);
       bus.emit("fx:shake", 10);
-      bus.emit("fx:bubbles", { x, y: 0, count: 30, splash: true, spread: 160 });
+      bus.emit("fx:bubbles", {
+        x,
+        y: 0,
+        count: 30 + 20 * ep,
+        splash: true,
+        spread: 160,
+        power: ep,
+      });
       bus.emit("whale:submerged", { pos: { x, y: 0 } });
 
       if (this.airAt >= 0) {

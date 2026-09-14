@@ -145,7 +145,8 @@ export function stepLocomotion(
     b.vy = t.y;
     if (intent.levelOut) b.vy *= 1 - 0.8 * dt;
   } else if (caps.airborne) {
-    const apex = Math.abs(b.vy) < 200 ? 0.75 : 1;
+    // ease gravity near the top of the arc for a beat of proper hangtime
+    const apex = Math.abs(b.vy) < 280 ? 0.6 : 1;
     b.vy += GRAVITY * apex * dt;
   }
 
@@ -234,9 +235,19 @@ export const PLAYER_CAPS: LocoCaps = {
  */
 export function podCaps(w: PodWhale): LocoCaps {
   const following = w.state === "following";
+  const breaching = w.breachT > 0;
   return {
-    maxSpeed: following ? 560 : w.state === "answered" ? 150 : 560,
-    turnRate: 3.0,
+    // uncap speed and snap the turn rate during a forced breach launch — the
+    // normal cruise cap sits right at `breachVy` and the normal turn rate is
+    // too slow to swing the velocity vector vertical inside the launch window
+    maxSpeed: breaching
+      ? null
+      : following
+        ? 560
+        : w.state === "answered"
+          ? 150
+          : 560,
+    turnRate: breaching ? 7 : 3.0,
     drag: 0,
     dragEase: 0,
     ambientSwell: 0,
