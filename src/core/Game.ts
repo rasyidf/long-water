@@ -34,7 +34,7 @@ import { Camera } from "./Camera";
 import { Clock } from "./Clock";
 import { EventBus } from "./EventBus";
 import type { GameContext } from "./GameContext";
-import { Input } from "./Input";
+import { Input } from "./input/Input";
 import { Layers } from "./Layers";
 import { renderSystems, previewSimSystems } from "./renderStack";
 import { Rng } from "./rng";
@@ -104,7 +104,7 @@ interface WorldState {
 }
 
 export class Game {
-  private app = new Application();
+  private app: Application = new Application();
   private clock = new Clock();
   private input = new Input();
   private profile = new Profile();
@@ -130,15 +130,7 @@ export class Game {
         requestAnimationFrame(() => setTimeout(() => r(), 0)),
       );
 
-    await this.app.init({
-      ...(preview
-        ? { width: PREVIEW_SIZE.w, height: PREVIEW_SIZE.h }
-        : { resizeTo: window }),
-      antialias: true,
-      background: C.abyss,
-      resolution: this.renderResolution(),
-      autoDensity: true,
-    });
+    await this.initRenderer(preview);
     mount.appendChild(this.app.canvas);
     // the graphics-quality render scale lands live: fewer pixels per frame is
     // the biggest single lever a low-end GPU has
@@ -399,19 +391,48 @@ export class Game {
       almanac,
       new CameraSystem(),
 
-      ...renderSystems(), 
+      ...renderSystems(),
 
       new Hud(),
       new ScoreHud(),
       new DepthRuler(),
-      new Hints(), 
-      new TouchControls(),  
+      new Hints(),
+      new TouchControls(),
     ];
   }
 
   /** device pixel ratio (capped at 2) scaled by the quality setting */
   private renderResolution(): number {
     return Math.min(window.devicePixelRatio || 1, 2) * quality().renderScale;
+  }
+
+  /** create the Pixi renderer. Some mobile GPUs reject a WebGL context
+   *  requested with antialiasing / a high device-pixel resolution but accept
+   *  a plainer one, so a first failure gets one retry on a fresh Application
+   *  with those attributes stripped before boot gives up entirely. */
+  private async initRenderer(preview: boolean): Promise<void> {
+    const size = preview
+      ? { width: PREVIEW_SIZE.w, height: PREVIEW_SIZE.h }
+      : { resizeTo: window };
+    try {
+      await this.app.init({
+        ...size,
+        antialias: true,
+        background: C.abyss,
+        resolution: this.renderResolution(),
+        autoDensity: true,
+      });
+    } catch (err) {
+      console.warn("renderer init failed, retrying with reduced settings", err);
+      this.app = new Application();
+      await this.app.init({
+        ...size,
+        antialias: false,
+        background: C.abyss,
+        resolution: 1,
+        autoDensity: true,
+      });
+    }
   }
 
   private applyRenderScale(): void {
@@ -426,6 +447,7 @@ export class Game {
     this.clock.tick(nowMs);
     const { ctx } = this;
 
+    ctx.input.poll();
     if (ctx.running) {
       for (const s of this.systems) s.update?.(this.clock.dt, ctx);
     }

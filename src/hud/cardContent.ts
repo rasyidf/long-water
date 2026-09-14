@@ -6,7 +6,6 @@
  */
 import { kmCovered, legId, legLengthKm } from "../config/route";
 import type { GameContext } from "../core/GameContext";
-import { isTouchDevice } from "../core/touch";
 import { has, t } from "../i18n";
 
 export interface CardContent {
@@ -14,30 +13,6 @@ export interface CardContent {
   h1: string;
   /** body paragraph, innerHTML */
   body: string;
-  /** the ".start" prompt line; omitted → left as-is */
-  start?: string;
-  /** key rows as `[label, description]`; omitted → the ".keys" block is hidden */
-  keys?: [string, string][];
-}
-
-export function titleCard(): CardContent {
-  return {
-    h1: t("card.title.h1"),
-    body: t("card.title.body"),
-    start: t(isTouchDevice ? "card.title.start.touch" : "card.title.start"),
-    keys: isTouchDevice
-      ? [
-          ["Stick", t("card.title.keys.touch.stick")],
-          ["Surge", t("card.title.keys.touch.surge")],
-          ["Sing", t("card.title.keys.touch.sing")],
-        ]
-      : [
-          ["W A S D", t("card.title.keys.wasd")],
-          ["Shift", t("card.title.keys.shift")],
-          ["Space", t("card.title.keys.space")],
-          ["Esc", t("card.title.keys.esc")],
-        ],
-  };
 }
 
 export function endCard(ctx: GameContext, won: boolean): CardContent {

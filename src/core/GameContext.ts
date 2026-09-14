@@ -10,7 +10,7 @@ import type { LevelDef } from "../world/level/schema";
 import type { Camera } from "./Camera";
 import type { Clock } from "./Clock";
 import type { EventBus } from "./EventBus";
-import type { Input } from "./Input";
+import type { Input } from "./input/Input";
 import type { Layers } from "./Layers";
 import type { Rng } from "./rng";
 

@@ -69,5 +69,10 @@ new Game()
   .catch((err) => {
     console.error(err);
     splash?.classList.add("failed");
-    if (splashWord) splashWord.textContent = t("boot.nowebgl");
+    if (splashWord) {
+      const detail = err instanceof Error ? err.message : String(err);
+      splashWord.textContent = detail
+        ? `${t("boot.nowebgl")} (${detail})`
+        : t("boot.nowebgl");
+    }
   });

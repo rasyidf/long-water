@@ -12,6 +12,7 @@
  */
 import { CREATURES, TROPHIES, type TrophyTier } from "../config/almanac";
 import { kmCovered } from "../config/route";
+import { isTouchDevice } from "../core/touch";
 import { t } from "../i18n";
 import type { Profile } from "../state/Profile";
 import type { SaveMeta } from "../state/Snapshot";
@@ -19,6 +20,7 @@ import type { AlmanacFind } from "../systems/AlmanacSystem";
 import type { CardContent } from "../hud/cardContent";
 import { Almanac, type AlmanacTab } from "./Almanac";
 import { creatureArt, trophyArt } from "./art";
+import { Credits } from "./Credits";
 import { $, isShown, keyDir, moveFocus, setShown } from "./dom";
 import { Options } from "./Options";
 
@@ -44,6 +46,7 @@ const TOAST_MS = 3200;
 export class FrontEnd {
   readonly options: Options;
   readonly almanac: Almanac;
+  readonly credits = new Credits();
 
   private title = $("title");
   private end = $("end");
@@ -191,6 +194,10 @@ export class FrontEnd {
       this.options.close();
       return true;
     }
+    if (this.credits.isOpen) {
+      this.credits.close();
+      return true;
+    }
     return false;
   }
 
@@ -249,6 +256,9 @@ export class FrontEnd {
       case "almanac":
       case "trophies":
         this.openAlmanac(act === "trophies" ? "trophies" : "creatures", act);
+        break;
+      case "credits":
+        this.credits.open(() => this.refocus(this.title, act));
         break;
     }
   }
@@ -334,6 +344,7 @@ export class FrontEnd {
   private activeLayer(): HTMLElement | null {
     if (this.almanac.isOpen) return this.almanac.root;
     if (this.options.isOpen) return $("options");
+    if (this.credits.isOpen) return this.credits.root;
     const pause = $("menu");
     if (!pause.hidden) return pause;
     if (this.screen === "end" && !this.end.inert) return this.end;
@@ -381,12 +392,21 @@ export class FrontEnd {
       t("end.title");
     this.end.querySelector('[data-act="again"] .lbl')!.textContent =
       t("end.again");
-    this.keyhint.innerHTML = [
-      ["W A S D", "keyhint.swim"],
-      ["Shift", "keyhint.surge"],
-      ["Space", "keyhint.sing"],
-      ["Esc", "keyhint.pause"],
-    ]
+    // touch has no keyboard — and a dedicated pause button, so no Esc row
+    this.keyhint.innerHTML = (
+      isTouchDevice
+        ? [
+            ["Stick", "keyhint.swim"],
+            ["Surge", "keyhint.surge"],
+            ["Sing", "keyhint.sing"],
+          ]
+        : [
+            ["W A S D", "keyhint.swim"],
+            ["Shift", "keyhint.surge"],
+            ["Space", "keyhint.sing"],
+            ["Esc", "keyhint.pause"],
+          ]
+    )
       .map(([k, key]) => `<span><kbd>${k}</kbd>${t(key)}</span>`)
       .join("");
   }

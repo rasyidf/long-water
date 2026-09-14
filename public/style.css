@@ -1031,6 +1031,33 @@ body:not([data-screen="play"]) .hud.keyhint {
   background: rgba(217, 96, 63, 0.14);
 }
 
+/* -- credits -- */
+.credits-made {
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  opacity: 0.4;
+  margin: 0 0 8px;
+}
+.credits-name {
+  font-size: 16px;
+  margin: 0 0 18px;
+}
+.credits-link {
+  display: inline-block;
+  color: var(--song);
+  text-decoration: none;
+  border-bottom: 1px solid rgba(159, 232, 213, 0.35);
+  font-size: 14px;
+  margin-bottom: 28px;
+  transition: border-color 0.15s ease;
+}
+.credits-link:hover,
+.credits-link:focus-visible {
+  border-color: var(--song);
+  outline: none;
+}
+
 /* -- graphics quality -- */
 .gfx-presets {
   display: flex;
