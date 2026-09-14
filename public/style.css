@@ -116,8 +116,9 @@ body {
   position: relative;
   width: min(240px, 26vw);
   height: 12px;
-  background: linear-gradient(rgba(222, 214, 198, 0.32), rgba(222, 214, 198, 0.32))
-      left center / 100% 1px no-repeat,
+  background:
+    linear-gradient(rgba(222, 214, 198, 0.32), rgba(222, 214, 198, 0.32)) left
+      center / 100% 1px no-repeat,
     repeating-linear-gradient(
         90deg,
         rgba(222, 214, 198, 0.22) 0 1px,
@@ -216,7 +217,9 @@ body {
   gap: 6px;
   opacity: 0;
   transform: translateY(8px);
-  transition: opacity 0.3s ease, transform 0.3s ease;
+  transition:
+    opacity 0.3s ease,
+    transform 0.3s ease;
 }
 .trickpop.show {
   opacity: 1;
@@ -310,7 +313,9 @@ body {
   width: 100%;
   border-radius: 4px;
   background: var(--bone);
-  transition: width 0.25s ease, background 0.3s linear;
+  transition:
+    width 0.25s ease,
+    background 0.3s linear;
 }
 #breathFill {
   background: linear-gradient(90deg, var(--surface), var(--song));
@@ -922,7 +927,7 @@ body:not([data-screen="play"]) .hud.keyhint {
   pointer-events: all;
 }
 .panel.options > * {
-  width: min(420px, 100%);
+  width: min(460px, 100%);
 }
 .panel.almanac > * {
   width: min(960px, 96vw);
@@ -1024,6 +1029,87 @@ body:not([data-screen="play"]) .hud.keyhint {
   opacity: 1;
   border-color: var(--alarm);
   background: rgba(217, 96, 63, 0.14);
+}
+
+/* -- graphics quality -- */
+.gfx-presets {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+.gfx-presets button {
+  appearance: none;
+  background: none;
+  border: 1px solid rgba(159, 232, 213, 0.16);
+  border-radius: 999px;
+  padding: 7px 16px;
+  font: inherit;
+  font-size: 12.5px;
+  letter-spacing: 0.03em;
+  color: var(--bone);
+  opacity: 0.6;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.gfx-presets button[aria-selected="true"] {
+  opacity: 1;
+  color: var(--song);
+  border-color: rgba(159, 232, 213, 0.45);
+  background: rgba(159, 232, 213, 0.08);
+}
+.gfx-presets button:hover:not([disabled]),
+.gfx-presets button:focus-visible {
+  opacity: 0.9;
+  outline: none;
+}
+.gfx-presets button[disabled] {
+  cursor: default;
+  margin-left: auto;
+  border-style: dashed;
+}
+.gfx-presets button[disabled][aria-selected="false"] {
+  opacity: 0.25;
+}
+.gfx-items {
+  margin-bottom: 8px;
+}
+.gfx-item {
+  margin-bottom: 10px;
+  cursor: pointer;
+}
+.gfx-item span {
+  flex: none;
+  width: 150px;
+  font-size: 13px;
+  opacity: 0.75;
+  text-align: left;
+}
+.gfx-item input[type="range"] {
+  flex: 1;
+  accent-color: var(--surface);
+}
+.gfx-item.toggle input {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin: 0 auto 0 0;
+  accent-color: var(--surface);
+}
+.gfx-item b {
+  flex: none;
+  width: 38px;
+  text-align: right;
+  font-size: 12px;
+  font-weight: 500;
+  opacity: 0.6;
+  font-variant-numeric: tabular-nums;
+}
+.gfx-note {
+  margin: 4px 0 26px;
+  font-size: 12px;
+  line-height: 1.5;
+  opacity: 0.45;
+  text-align: left;
 }
 
 .alm-head {

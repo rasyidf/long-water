@@ -161,7 +161,7 @@ function ship(): string {
 
 function coral(id: string): string {
   const hue = hex(
-    [0xff6f6b, 0xdd6f9e, 0xe0b45c, 0xc27bd6, 0x8f83d8][
+    [0xff6f6b, 0xdd6f9e, 0xe0b45c, 0xc27bd6, 0x8f83d8, 0xf09a6a, 0x7fc9a6][
       CORAL_IDS.indexOf(id as (typeof CORAL_IDS)[number])
     ] ?? C.coral,
   );
@@ -192,6 +192,18 @@ function coral(id: string): string {
                <ellipse cx="${x}" cy="${top + 2}" rx="${w / 2 - 1.5}" ry="1.8" fill="#04080e" opacity=".5"/>`,
           )
           .join("")}`);
+    case "anemone":
+      return svg(`${rock}
+        <path d="M46 70C44 56 46 46 48 40L72 40C74 46 76 56 74 70Z" fill="${hue}" opacity=".85"/>
+        <ellipse cx="60" cy="40" rx="14" ry="4" fill="${hue}"/>
+        <ellipse cx="60" cy="40" rx="4" ry="1.6" fill="#04080e" opacity=".5"/>
+        <path d="M48 38C40 30 34 26 30 16M52 37C48 28 44 22 42 12M57 36C56 26 54 18 56 8M63 36C64 26 66 18 64 8M68 37C72 28 76 22 78 12M72 38C80 30 86 26 90 16M50 39C42 34 34 34 26 30M70 39C78 34 86 34 94 30" stroke="${hue}" stroke-width="2.6" stroke-linecap="round" fill="none"/>`);
+    case "table-coral":
+      return svg(`${rock}
+        <path d="M56 70L55 42L65 42L64 70Z" fill="${hue}" opacity=".8"/>
+        <path d="M18 40C22 32 40 30 60 30C80 30 98 32 102 40C96 46 80 48 60 48C40 48 24 46 18 40Z" fill="${hue}"/>
+        <path d="M22 41C40 47 80 47 98 41C90 44 74 46 60 46C46 46 30 44 22 41Z" fill="#04080e" opacity=".3"/>
+        <path d="M34 32L33 24M46 30L46 20M60 30L60 18M74 30L74 20M86 32L87 24" stroke="${hue}" stroke-width="2.4" stroke-linecap="round"/>`);
     default: // sea-whip
       return svg(`${rock}
         <path d="M56 70C54 50 44 34 38 10M60 70C62 48 58 30 64 8M64 70C70 52 80 40 88 18M58 70C50 56 36 48 26 30" stroke="${hue}" stroke-width="2.4" stroke-linecap="round" fill="none"/>`);

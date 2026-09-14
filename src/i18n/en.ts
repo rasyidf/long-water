@@ -112,6 +112,32 @@ export const en: Record<string, string> = {
   "options.reset": "Reset progress",
   "options.resetConfirm": "Press again to confirm",
   "options.resetDone": "Progress reset",
+  "options.graphics": "Graphics",
+  "options.graphicsNote":
+    "Changes land at once, even mid-run. If the frame rate drops, start " +
+    "with render scale and the glow, then switch the water effects off one " +
+    "at a time.",
+  "quality.preset.low": "Low",
+  "quality.preset.medium": "Medium",
+  "quality.preset.high": "High",
+  "quality.preset.custom": "Custom",
+  "quality.on": "On",
+  "quality.off": "Off",
+  "quality.renderScale": "Render scale",
+  "quality.bloom": "Glow bloom",
+  "quality.godRays": "God-rays",
+  "quality.caustics": "Caustics",
+  "quality.clouds": "Clouds",
+  "quality.skyLife": "Stars & gulls",
+  "quality.surfaceDetail": "Foam, glitter & spray",
+  "quality.slabs": "Sunlit water",
+  "quality.murk": "Drifting silt",
+  "quality.thermocline": "Thermocline shimmer",
+  "quality.snow": "Marine snow",
+  "quality.sparks": "Bioluminescence",
+  "quality.creatureDetail": "Creature detail",
+  "quality.reefDetail": "Reef detail",
+  "quality.terrainDetail": "Far ridge & rubble",
   "controls.wasd": "swim, with a very large animal's momentum",
   "controls.shift": "hold to surge and build speed; tap for a tail-kick burst",
   "controls.space": "sing, and call the pod in with you",
@@ -261,6 +287,24 @@ export const en: Record<string, string> = {
   "almanac.sea-whip.body":
     "Thin, whip-like branches that bend with the current rather than " +
     "fight it, reaching higher off the reef than most of its neighbours.",
+
+  "almanac.anemone.name": "Anemone",
+  "almanac.anemone.size": "a squat column, crowned with tentacles",
+  "almanac.anemone.found": "The shallow shelf reef",
+  "almanac.anemone.temper": "Stationary — every tentacle on its own time",
+  "almanac.anemone.body":
+    "Not a coral at all but a single soft animal: a stout column topped with " +
+    "a ring of tentacles that each wave to their own rhythm, closing over " +
+    "whatever the current delivers.",
+
+  "almanac.table-coral.name": "Table Coral",
+  "almanac.table-coral.size": "a broad plate on a short stem",
+  "almanac.table-coral.found": "The shallow shelf reef",
+  "almanac.table-coral.temper": "Stationary — reaching for the light",
+  "almanac.table-coral.body":
+    "A flat plate spread wide on a single stem to catch as much sun as the " +
+    "reef allows, its rim scalloped and its underside kept in permanent " +
+    "shade for whatever shelters there.",
 
   // trophies
   "trophy.unearned": "Not yet earned.",

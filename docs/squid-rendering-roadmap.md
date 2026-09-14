@@ -84,7 +84,7 @@ Concretely, relative to the whale's current (post-rewrite) state:
 ## Bugs (Correctness / Visual Corruption)
 
 ### 1. The two feeding tentacles overlay the outermost pair of arms
-- **Status:** ☐ Not started
+- **Status:** ☑ Done (2026-09-11)
 - **Severity:** Medium — visible geometric overlap, not a crash
 - **Description:** In `drawArms`, `idx` picks each limb's angular slot in the
   fan:
@@ -115,7 +115,7 @@ Concretely, relative to the whale's current (post-rewrite) state:
   operates on the same `idx`.
 
 ### 2. Squid ignores depth/ambient light — never dims in the dark
-- **Status:** ☐ Not started
+- **Status:** ☑ Done (2026-09-11)
 - **Severity:** Medium-High — breaks the creature's core visual premise
 - **Description:** `src/config/squid.ts`'s own header describes the squid as
   a creature that "lurks" and only becomes active in "the true dark"
@@ -148,7 +148,7 @@ Concretely, relative to the whale's current (post-rewrite) state:
 ## Geometry Quality
 
 ### 3. No `geometry.ts` — shape math is entangled with Pixi and the camera
-- **Status:** ☐ Not started
+- **Status:** ☑ Done (2026-09-11)
 - **Severity:** High — blocks testing and reuse, mirrors whale's old #27
 - **Description:** Every offset in `ProceduralSquidView.draw()` and
   `drawArms()` is computed directly against the screen-space `X`/`Y`
@@ -180,7 +180,7 @@ Concretely, relative to the whale's current (post-rewrite) state:
   outline math moved to `geometry.ts`.
 
 ### 4. Head and eye radius inherit the mantle's jet pulse
-- **Status:** ☐ Not started
+- **Status:** ☑ Done (2026-09-11)
 - **Severity:** Low-Medium — subtle but constant visual artifact
 - **Description:** `mw` is the jet-pulsed mantle half-width:
   ```ts
@@ -209,7 +209,7 @@ Concretely, relative to the whale's current (post-rewrite) state:
   comment already claims it is.
 
 ### 5. Arm segments are straight `lineTo` chains, not curves
-- **Status:** ☐ Not started
+- **Status:** ☑ Done (2026-09-11)
 - **Severity:** Low-Medium — faceted silhouette, most visible on a flared grab
 - **Description:** Each arm's outline is built from `S = 5` straight
   segments per edge:
@@ -232,7 +232,7 @@ Concretely, relative to the whale's current (post-rewrite) state:
 - **Impact:** Smoother arm silhouettes without more simulation cost.
 
 ### 6. No per-individual proportion variation
-- **Status:** ☐ Not started
+- **Status:** ☑ Done (2026-09-11)
 - **Severity:** Low — cosmetic variety, not correctness
 - **Description:** `MANTLE = 96` and `MANTLE_W = 24`
   ([ProceduralSquidView.ts:21-22](../src/render/squid/ProceduralSquidView.ts))
@@ -258,7 +258,7 @@ body space (anatomy). The squid currently has neither half of that model —
 there is no roll axis to project, and no lighting layer to sort.*
 
 ### 7. No roll/pitch axis — the squid is a flat 2D yaw-only rotation
-- **Status:** ☐ Not started (decision needed)
+- **Status:** ☑ Decided (2026-09-11): yaw-only stays; light is screen-space (see #8)
 - **Severity:** Medium — architecture gap, not a bug given current usage
 - **Description:** `Squid` ([src/state/Squid.ts:29-63](../src/state/Squid.ts))
   has `heading` only; no `roll`/`pitch` field exists, and nothing in
@@ -281,7 +281,7 @@ there is no roll axis to project, and no lighting layer to sort.*
   decision is made deliberately rather than by omission.
 
 ### 8. No screen-space lighting layer at all
-- **Status:** ☐ Not started
+- **Status:** ☑ Done (2026-09-11)
 - **Severity:** Medium — ties into Bug #2
 - **Description:** The whale explicitly splits "light from above" / "form
   shadow underneath" (screen-space, stays fixed through a roll) from
@@ -301,7 +301,7 @@ there is no roll axis to project, and no lighting layer to sort.*
   rather than a flat painted sprite.
 
 ### 9. The view has no `sq.state` awareness; a latched squid has no grip visual
-- **Status:** ☐ Not started
+- **Status:** ☑ Done (2026-09-11)
 - **Severity:** Low-Medium — missing feature, most noticeable during a strike
 - **Description:** `ProceduralSquidView.draw()` only reads `sq.heading`,
   `sq.jet`, `sq.flare`, `sq.arousal`, and `sq.size` — never `sq.state` or
@@ -326,7 +326,7 @@ there is no roll axis to project, and no lighting layer to sort.*
 ## Visual Artifacts & Polish
 
 ### 10. No per-squid seed/variety — `sq.ph` is unused by the view
-- **Status:** ☐ Not started
+- **Status:** ☑ Done (2026-09-11)
 - **Severity:** Low — only matters if more than one squid is ever visible
   at once
 - **Description:** `Squid.ph` ([src/state/Squid.ts:55-56](../src/state/Squid.ts))
@@ -342,7 +342,7 @@ there is no roll axis to project, and no lighting layer to sort.*
   `config/squid.ts`) is one squid at a time; worth fixing if that changes.
 
 ### 11. No LOD system
-- **Status:** ☐ Not started
+- **Status:** ☑ Done (2026-09-11)
 - **Severity:** Low
 - **Description:** There is no distance/zoom-based simplification anywhere in
   `ProceduralSquidView` — no equivalent of the whale's `STEPS` tiering (whale
@@ -356,7 +356,7 @@ there is no roll axis to project, and no lighting layer to sort.*
 - **Impact:** Low priority, recorded for completeness per the audit brief.
 
 ### 12. Single wraparound tail fin instead of paired lateral fins
-- **Status:** ☐ Not started
+- **Status:** ☑ Done (2026-09-11)
 - **Severity:** Low — anatomy/species accuracy, cosmetic
 - **Description:** The fin block draws one continuous shape that sweeps from
   one flank, around the mantle tip, to the other flank
@@ -376,7 +376,7 @@ there is no roll axis to project, and no lighting layer to sort.*
 ## Architecture & Performance
 
 ### 13. `draw()` allocates every frame, for every squid
-- **Status:** ☐ Not started
+- **Status:** ☑ Done (2026-09-11)
 - **Severity:** Medium — mirrors the whale's old #3
 - **Description:** `ProceduralSquidView` has no scratch/pool fields at all
   (contrast `ProceduralWhaleView`'s ~15 `private readonly` fields:
@@ -409,7 +409,7 @@ there is no roll axis to project, and no lighting layer to sort.*
   real per-frame allocation source.
 
 ### 14. No `geometry.ts` split (architecture-level restatement of #3)
-- **Status:** ☐ Not started
+- **Status:** ☑ Done (2026-09-11)
 - **Severity:** High — blocks testing, enables everything else in this doc
 - **Description:** See issue #3 for the concrete duplication with
   `GlowRenderer`. Architecturally this is the same step the whale doc's #27
@@ -426,7 +426,7 @@ there is no roll axis to project, and no lighting layer to sort.*
   same role the whale doc's #27 played for that doc's Phase 2.
 
 ### 15. Culling is X-only, with a flat unscaled margin
-- **Status:** ☐ Not started (partial — some culling exists)
+- **Status:** ☑ Done (2026-09-11)
 - **Severity:** Low — mirrors the whale's #28, already partly addressed
 - **Description:** `SquidRenderer.render()`:
   ```ts
@@ -502,4 +502,60 @@ Use checkboxes above to mark progress. Update status from "Not started" →
 "In progress" → "Done" as work happens, and add a dated "Progress" section
 (matching the whale doc's format) once the first implementation pass lands.
 
-**Last updated:** 2026-09-11 (initial audit, no implementation yet)
+## Progress
+
+### 2026-09-11 — first implementation pass (closes #1–#6, #8–#15; decides #7)
+
+The view was rewritten against the whale's standard rather than patched:
+
+- **`render/squid/geometry.ts` + `geometry.test.ts`** (#3, #14) — every shape is
+  a pure local-frame function (`buildMantleOutline`, `buildFin`, `limbPoints`,
+  `photophoreLocal`, `eyeLocal`, `localToWorld` / `worldToLocal`), with 27
+  vitest cases covering the limb-slot fix, the tentacle club, the asymmetric
+  jet pulse, mantle self-intersection at both pulse extremes, photophores
+  staying inside the mantle, per-individual proportion bounds and the grip
+  bend. `GlowRenderer` now reads the same anchors instead of re-rolling the
+  rotation (`localToWorld`) and adds eye-shine.
+- **`render/squid/params.ts`** — `SquidLook` (mantle length / girth, head
+  radius, fin root / length / span, arm / tentacle length, arm width / wave,
+  pulse depth, chromatophore density, variety) with the same
+  `squidLook()` / `setSquidLook()` live-override hook the ocean uses.
+- **#1** tentacles sit in their own slots inside the fan (between the third
+  and fourth arm of each side, where a real squid carries them) and grow a club
+  at the tip. **#4** head and eye are sized off `look.headR`, never the pulse.
+  **#5** every limb is a smooth quadratic ribbon (`drawBlob`), 4–8 centre-line
+  samples by LOD. **#12** two lateral fin lobes, each rippling with a wave
+  travelling root → tip off `sq.jet`. The jet itself is now asymmetric
+  (`pulseWave`: 30% squeeze, 70% refill, zero mean) and lengthens the mantle
+  as it squeezes.
+- **#6 / #10** `individual(ph, variety)` hashes mantle / girth / fin / arm /
+  tentacle ratios and a fleck seed from `sq.ph`; every limb's sway carries its
+  own phase from `ph` too.
+- **#2** `SquidRenderer` passes `alpha = max(lightAt(y) · 0.95, 0.18 + 0.3 ·
+  arousal)` so a squid in the true dark is a faint shape read by its glow.
+  **#15** culling is `cam.visibleX(reach · size)` plus a vertical check.
+- **#7 / #8** decision: no roll / pitch axis — the animal is yaw-only by
+  design, so the whale's ellipse model would buy nothing. The light split is
+  done in screen space instead: sheen / rim on whichever flank maps up-screen
+  (weight |cos heading|), form shadow on the down flank, a tip sheen when the
+  mantle points up and a head-crown sheen when the head does. The ventral
+  stripe and the visible eye ride the down / up flank respectively and slide
+  to the centre line as the squid points straight up or down.
+- **#9** a `latched` squid gets `gripAt` (the whale's body — the squid already
+  sits at its grip point) and the tentacle tips bend onto it.
+- **#11** `detail` / `fine` smoothstep ramps on the on-screen size tier the
+  mantle steps (12–24), limb samples (4–8) and fleck count.
+- **#13** the view holds pre-allocated pools for the outline, bands, limbs and
+  fins, projects through class methods (no per-draw closures beyond the shared
+  `pick`), and caches its twelve palette colours on arousal quantised to 1/32.
+- **Tooling:** `tools.html#squid` now has a body mode (`tools/squidDesigner.ts`,
+  the whale designer's twin: per-section hover / pin, source slice, state
+  preset buttons, flare contact sheet, grip target, every `SquidLook` dial)
+  alongside the old scene mode, and `scripts/shot-squid.mjs` drives it through
+  `window.__squid`.
+
+Left open: nothing from the audit. Possible follow-ups are a real pitch blend
+on the strike lunge (ruled out for now under #7) and a species pass on the fin
+shape if the game ever names the animal.
+
+**Last updated:** 2026-09-11 (first implementation pass landed; see Progress)

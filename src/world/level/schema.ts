@@ -151,7 +151,8 @@ export interface CoralScatter {
   spacing: Range;
   /** a patch stops if the floor drops past here */
   patchDropFloor: number;
-  /** `int(rng.next() * kinds)` picks the coral kind */
+  /** `int(rng.next() * kinds)` picks the coral kind — up to `KIND_COUNT` (7)
+   *  in `render/coral/geometry.ts`; 5 keeps the original five */
   kinds: number;
   scale: Range;
   /** x advance after a patch / when the tile does not qualify */

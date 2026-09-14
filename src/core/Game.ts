@@ -61,6 +61,7 @@ import { Hints } from "../hud/Hints";
 import { Hud } from "../hud/Hud";
 import { ScoreHud } from "../hud/ScoreHud";
 import { PauseMenu } from "../hud/PauseMenu";
+import { onQuality, quality } from "../state/Quality";
 import { FrontEnd } from "../menu/FrontEnd";
 
 /** Ordered boot milestones, reported to `boot`'s `onProgress` for the splash. */
@@ -134,10 +135,13 @@ export class Game {
         : { resizeTo: window }),
       antialias: true,
       background: C.abyss,
-      resolution: Math.min(window.devicePixelRatio || 1, 2),
+      resolution: this.renderResolution(),
       autoDensity: true,
     });
     mount.appendChild(this.app.canvas);
+    // the graphics-quality render scale lands live: fewer pixels per frame is
+    // the biggest single lever a low-end GPU has
+    onQuality(() => this.applyRenderScale());
     report("renderer");
     if (!preview) await breathe();
 
@@ -402,6 +406,19 @@ export class Game {
       new Hints(),
       this.pauseMenu,
     ];
+  }
+
+  /** device pixel ratio (capped at 2) scaled by the quality setting */
+  private renderResolution(): number {
+    return Math.min(window.devicePixelRatio || 1, 2) * quality().renderScale;
+  }
+
+  private applyRenderScale(): void {
+    const r = this.renderResolution();
+    if (Math.abs(this.app.renderer.resolution - r) < 1e-3) return;
+    this.app.renderer.resolution = r;
+    // re-fit the canvas to the window at the new density
+    this.app.resize();
   }
 
   private frame = (nowMs: number): void => {

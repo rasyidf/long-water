@@ -23,7 +23,10 @@ const p = await b.newPage({ viewport: { width: 1500, height: 860 } });
 const errs = [];
 p.on("console", (m) => m.type() === "error" && errs.push(m.text()));
 p.on("pageerror", (e) => errs.push(String(e)));
-await p.goto("http://localhost:8080/tools.html#ocean", { waitUntil: "networkidle" });
+const port = process.env.PORT ?? "8080";
+await p.goto(`http://localhost:${port}/tools.html#ocean`, {
+  waitUntil: "networkidle",
+});
 await p.waitForFunction(() => !!window.__ocean, null, { timeout: 15000 });
 await p.waitForTimeout(2000);
 

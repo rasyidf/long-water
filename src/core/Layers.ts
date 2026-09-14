@@ -14,6 +14,7 @@ import {
 export const LAYER_ORDER = [
   "sky",
   "water",
+  "column",
   "surface",
   "shafts",
   "snow",
@@ -27,6 +28,7 @@ export const LAYER_ORDER = [
   "ships",
   "caustics",
   "darkness",
+  "sparks",
   "glow",
 ] as const;
 
@@ -42,6 +44,9 @@ export class Layers {
    * gulls and the horizon haze. Drawn procedurally, not a baked gradient. */
   readonly sky = new Graphics();
   readonly waterSprite = new Sprite();
+  /** the body of the water: drifting haze lenses and the thermocline seam,
+   * drawn over the column gradient and under everything that swims in it */
+  readonly column = new Graphics();
   /** animated wavy waterline */
   readonly surface = new Graphics();
   readonly shafts = new Graphics();
@@ -67,19 +72,29 @@ export class Layers {
   readonly darkGrad = new Sprite();
   readonly darkFill = new Graphics();
 
+  /** bioluminescent sparks in the deep — additive, drawn over the darkness so
+   * they read as light sources rather than as specks the dark swallows */
+  readonly sparks = new Graphics();
+
   /** additive, blurred bloom pass */
   readonly glowGraphics = new Graphics();
   readonly glow = new Container();
 
   readonly vignette = new Sprite();
 
+  /** the blur behind the glow layer, kept so quality can switch it on/off */
+  private bloom: BlurFilter | null = null;
+  private bloomOn = false;
+
   constructor() {
     this.shafts.blendMode = "add";
     this.caustics.blendMode = "add";
+    this.sparks.blendMode = "add";
     this.glow.blendMode = "add";
     this.glow.addChild(this.glowGraphics);
     try {
-      this.glow.filters = [new BlurFilter({ strength: 12, quality: 3 })];
+      this.bloom = new BlurFilter({ strength: 12, quality: 3 });
+      this.setBloom(true);
     } catch {
       /* filters unsupported — still readable without the bloom */
     }
@@ -87,6 +102,7 @@ export class Layers {
     this.world.addChild(
       this.sky,
       this.waterSprite,
+      this.column,
       this.surface,
       this.shafts,
       this.snow,
@@ -101,8 +117,17 @@ export class Layers {
       this.caustics,
       this.darkFill,
       this.darkGrad,
+      this.sparks,
       this.glow,
     );
     this.overlay.addChild(this.vignette);
+  }
+
+  /** graphics quality: the blur is a full-screen pass, so it can be dropped
+   * and the glow drawn sharp (cheap no-op when unchanged) */
+  setBloom(on: boolean): void {
+    if (!this.bloom || on === this.bloomOn) return;
+    this.bloomOn = on;
+    this.glow.filters = on ? [this.bloom] : [];
   }
 }

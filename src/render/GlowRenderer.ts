@@ -3,12 +3,39 @@ import { COL, C, NCOL } from "../config/constants";
 import { SPECIES } from "../config/species";
 import type { GameContext } from "../core/GameContext";
 import type { System } from "../core/System";
+import type { Vec2 } from "../core/math";
+import {
+  eyeLocal,
+  eyeRadius,
+  individual,
+  type Individual,
+  jetGirth,
+  jetLength,
+  localToWorld,
+  PHOTOPHORES,
+  photophoreLocal,
+  pulseWave,
+} from "./squid/geometry";
+import { squidLook } from "./squid/params";
+import { quality } from "../state/Quality";
 
 export class GlowRenderer implements System {
   readonly name = "render:glow";
 
+  /** scratch for the squid anchors, so the pass allocates nothing per frame */
+  private readonly p: Vec2 = { x: 0, y: 0 };
+  private readonly ind: Individual = {
+    mantleK: 1,
+    girthK: 1,
+    finK: 1,
+    armK: 1,
+    tentK: 1,
+    seed: 0,
+  };
+
   render(ctx: GameContext): void {
     const { camera: cam, layers: L, world } = ctx;
+    L.setBloom(quality().bloom);
     const sc = cam.scale;
     const [left, right] = cam.visibleX(300);
     const c0 = Math.max(0, Math.floor(left / COL));
@@ -45,24 +72,39 @@ export class GlowRenderer implements System {
       });
     }
 
-    // squid: photophores down the mantle + eye-shine, pulsing with arousal
+    // squid: photophores down the mantle + eye-shine, pulsing with arousal.
+    // Anchors come from `render/squid/geometry` so the bloom sits exactly on
+    // the base dots the view draws, and brightens on the squeeze of each jet.
+    const look = squidLook();
     for (const sq of ctx.squid.squids) {
       const glow = sq.arousal * 0.6 + (sq.state === "strike" ? 0.4 : 0);
       if (glow < 0.05 || Math.abs(sq.x - cam.x) > 5200) continue;
-      const ca = Math.cos(sq.heading);
-      const sa = Math.sin(sq.heading);
       const k = sc * sq.size;
-      const pulse = 0.6 + 0.4 * Math.sin(sq.jet * 1.4);
-      for (let n = 0; n < 5; n++) {
-        const al = 10 + n * 16; // down the ~96u mantle
-        const pe = (n % 2 ? 1 : -1) * 7;
-        gg.circle(
-          cam.sx(sq.x) + (al * ca - pe * sa) * k,
-          cam.sy(sq.y) + (al * sa + pe * ca) * k,
-          (1.6 + n * 0.25) * k,
+      individual(sq.ph, look.variety, this.ind);
+      const mw =
+        look.mantleW * this.ind.girthK * jetGirth(sq.jet, look.pulseDepth);
+      const ml =
+        look.mantleLen * this.ind.mantleK * jetLength(sq.jet, look.pulseDepth);
+      const pulse = 0.6 + 0.4 * (0.5 - 0.5 * pulseWave(sq.jet));
+      for (let n = 0; n < PHOTOPHORES; n++) {
+        photophoreLocal(n, ml, mw, this.p);
+        localToWorld(
+          sq.x,
+          sq.y,
+          sq.heading,
+          sq.size,
+          this.p.x,
+          this.p.y,
+          this.p,
         );
+        gg.circle(cam.sx(this.p.x), cam.sy(this.p.y), (1.6 + n * 0.25) * k);
       }
       gg.fill({ color: 0x7fd7e6, alpha: Math.min(0.8, glow * pulse) });
+      // eye-shine: the one eye we see, catching what little light there is
+      eyeLocal(look, Math.cos(sq.heading), this.p);
+      localToWorld(sq.x, sq.y, sq.heading, sq.size, this.p.x, this.p.y, this.p);
+      gg.circle(cam.sx(this.p.x), cam.sy(this.p.y), eyeRadius(look) * k * 0.9);
+      gg.fill({ color: 0xffd27a, alpha: Math.min(0.6, glow * 0.55) });
     }
 
     for (const p of ctx.song.pings) {

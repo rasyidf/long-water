@@ -95,7 +95,7 @@
       "patchCount": [2, 6],
       "spacing": [60, 200],
       "patchDropFloor": 1600,
-      "kinds": 5,
+      "kinds": 7,
       "scale": [0.75, 1.7],
       "gap": [1600, 4800],
       "skipGap": [400, 1100],

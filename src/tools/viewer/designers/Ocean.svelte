@@ -83,8 +83,10 @@
       return host?.context ?? null;
     },
     preset: usePreset,
-    patch: (group: "wave" | "sky" | "column", v: Record<string, number>) =>
-      Object.assign(params[group], v),
+    patch: (
+      group: "wave" | "sky" | "column" | "water",
+      v: Record<string, number>,
+    ) => Object.assign(params[group], v),
     only: (list: OceanSection[]) => {
       hidden.clear();
       for (const s of OCEAN_SECTIONS) if (!list.includes(s)) hidden.add(s);
@@ -510,6 +512,107 @@
       step={0.01}
     />
 
+    <h3>water column</h3>
+    <Slider
+      label="murk"
+      bind:value={params.water.murk}
+      min={0}
+      max={1}
+      step={0.01}
+    />
+    <Slider
+      label="murk lens size"
+      bind:value={params.water.murkScale}
+      min={200}
+      max={2400}
+      step={20}
+      fmt={(v) => `${Math.round(v * UNIT_M)} m`}
+    />
+    <Slider
+      label="murk drift"
+      bind:value={params.water.murkDrift}
+      min={-80}
+      max={80}
+      fmt={(v) => `${(v * UNIT_M).toFixed(1)} m/s`}
+    />
+    <Slider
+      label="colour absorption"
+      bind:value={params.water.absorption}
+      min={0}
+      max={1}
+      step={0.01}
+      fmt={(v) => `${Math.round(v * 100)}%`}
+    />
+    <Slider
+      label="thermocline depth"
+      bind:value={params.water.thermoclineDepth}
+      min={150}
+      max={1600}
+      step={10}
+      fmt={(v) => `${Math.round(v * UNIT_M)} m`}
+    />
+    <Slider
+      label="thermocline shimmer"
+      bind:value={params.water.thermoclineStrength}
+      min={0}
+      max={1}
+      step={0.01}
+    />
+    <Slider
+      label="marine snow"
+      bind:value={params.water.snowDensity}
+      min={0}
+      max={2}
+      step={0.05}
+      fmt={(v) => `${Math.round(v * 100)}%`}
+    />
+    <Slider
+      label="snow size"
+      bind:value={params.water.snowSize}
+      min={0.3}
+      max={3}
+      step={0.05}
+      fmt={(v) => `${v.toFixed(2)}×`}
+    />
+    <Slider
+      label="snow sink"
+      bind:value={params.water.snowDrift}
+      min={0}
+      max={40}
+      step={0.5}
+      fmt={(v) => `${(v * UNIT_M).toFixed(1)} m/s`}
+    />
+    <Slider
+      label="current"
+      bind:value={params.water.current}
+      min={-120}
+      max={120}
+      fmt={(v) => `${(v * UNIT_M).toFixed(1)} m/s`}
+    />
+    <Slider
+      label="bioluminescence"
+      bind:value={params.water.sparks}
+      min={0}
+      max={1}
+      step={0.01}
+    />
+    <Slider
+      label="spark size"
+      bind:value={params.water.sparkSize}
+      min={0.3}
+      max={3}
+      step={0.05}
+      fmt={(v) => `${v.toFixed(2)}×`}
+    />
+    <Slider
+      label="day cycle in play"
+      bind:value={params.water.dayLength}
+      min={0}
+      max={1800}
+      step={30}
+      fmt={(v) => (v === 0 ? "frozen" : `${v}s / day`)}
+    />
+
     <h3>draw sections</h3>
     <div class="sections">
       {#each OCEAN_SECTIONS as s (s)}
@@ -541,6 +644,9 @@
       >
       <button type="button" onclick={() => host && look(host, 60, 0.14)}
         >wide</button
+      >
+      <button type="button" onclick={() => host && look(host, 2200, 0.3)}
+        >in the dark</button
       >
     </div>
   {/snippet}
