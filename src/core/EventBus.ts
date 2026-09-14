@@ -18,7 +18,9 @@ export type ScoreKind =
   | "closePass"
   | "squidDodge"
   | "squidShaken"
-  | "squidPod";
+  | "squidPod"
+  | "scrape"
+  | "drafting";
 
 export interface GameEvents {
   /** the player's first breath: New Game / Continue on the title screen */
@@ -50,6 +52,9 @@ export interface GameEvents {
   "pod:joined": { count: number };
   "pod:lost": { count: number };
   "pod:chorus": void;
+  /** the player held station inside a crowd of `companionCount` followers for
+   *  `duration` seconds — the escort's slipstream */
+  "pod:drafting": { duration: number; companionCount: number };
 
   "whale:surfaced": { impactVy: number; pos: Vec2 };
   "whale:submerged": { pos: Vec2 };
@@ -66,7 +71,14 @@ export interface GameEvents {
     turns: number;
     cleanArc: number;
     pos: Vec2;
+    /** speed bled to near zero while still airborne — stalled at the apex */
+    apexStall?: boolean;
+    /** flat, high-speed, non-rotating splashdown */
+    tailSlap?: boolean;
   };
+  /** dragged along the seabed at speed */
+  "whale:scrape": { pos: Vec2 };
+
   "krill:fed": { swarmsFed: number };
 
   /** points banked — a trick, a feed, or a close pass. `mult` is the flow
@@ -91,6 +103,8 @@ export interface GameEvents {
   "squid:evaded": { closeness: number; pos: Vec2 };
   /** a latched squid was thrown off — `byPod` if the pod did the work */
   "squid:struck": { byPod: boolean; pos: Vec2 };
+  /** a latched squid was shaken loose by a hard-enough breach */
+  "squid:lockBroken": { pos: Vec2; impactVelocity: number };
   /** a latched squid let go on its own */
   "squid:released": { pos: Vec2 };
 

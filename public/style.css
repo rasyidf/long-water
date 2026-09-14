@@ -1585,6 +1585,10 @@ body:not([data-screen="play"]) .hud.keyhint {
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
 }
+.touch-pause.active {
+  transform: scale(0.92);
+  background: rgba(159, 232, 213, 0.22);
+}
 .touch-pause span {
   width: 3px;
   height: 14px;

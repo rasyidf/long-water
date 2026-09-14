@@ -44,18 +44,34 @@ export class ScoreSystem implements System {
     bus.on("krill:fed", () =>
       this.award(ctx, POINTS.krillFeast, t("trick.feast"), "feast"),
     );
+    bus.on("whale:scrape", () =>
+      this.award(ctx, POINTS.barnacleScrape, t("trick.scrape"), "scrape"),
+    );
 
     bus.on("pod:joined", ({ count }) => {
       this.award(ctx, POINTS.podJoin, t("trick.podJoin"), "podJoin");
-      for (const [n, pts] of POD_MILESTONES) {
-        if (count >= n) {
-          this.milestone(ctx, `pod-${n}`, pts, t(`milestone.pod.${n}`));
+      for (const [threshold, pts] of POD_MILESTONES) {
+        if (count >= threshold) {
+          this.milestone(
+            ctx,
+            `pod-${threshold}`,
+            pts,
+            t(`milestone.pod.${threshold}`),
+          );
         }
       }
     });
 
     bus.on("pod:chorus", () =>
       this.award(ctx, POINTS.chorus, t("trick.chorus"), "chorus"),
+    );
+    bus.on("pod:drafting", () =>
+      this.award(
+        ctx,
+        POINTS.formationDrafting,
+        t("trick.drafting"),
+        "drafting",
+      ),
     );
 
     bus.on("squid:evaded", ({ closeness, pos }) => {
@@ -75,6 +91,15 @@ export class ScoreSystem implements System {
         byPod ? POINTS.squidPodDefense : POINTS.squidShaken,
         t(byPod ? "trick.squidPod" : "trick.squidShaken"),
         byPod ? "squidPod" : "squidShaken",
+        pos,
+      );
+    });
+    bus.on("squid:lockBroken", ({ pos }) => {
+      this.award(
+        ctx,
+        POINTS.breachEvasion,
+        t("trick.breachEvasion"),
+        "squidShaken",
         pos,
       );
     });
@@ -151,6 +176,8 @@ export class ScoreSystem implements System {
       turns: number;
       cleanArc: number;
       pos: Vec2;
+      apexStall?: boolean;
+      tailSlap?: boolean;
     },
   ): void {
     // airtime as 0..1: ~0.4 s is a bare hop, ~1.4 s is a towering breach
@@ -166,6 +193,16 @@ export class ScoreSystem implements System {
     else label = air > 0.6 ? t("trick.breachBig") : t("trick.breach");
 
     const parts = [label];
+
+    if (r.apexStall) {
+      pts += POINTS.perfectApex;
+      parts.push(t("trick.perfectApex"));
+    }
+    if (r.tailSlap) {
+      pts += POINTS.tailSlap;
+      parts.push(t("trick.tailSlap"));
+    }
+
     if (turns > 0 && r.cleanArc >= CLEAN_ARC) {
       pts += POINTS.cleanEntry;
       parts.push(t("trick.clean"));

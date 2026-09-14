@@ -21,6 +21,10 @@ export class TouchControls implements System {
   private btnPause = $("btnPause");
 
   private input!: GameContext["input"];
+  /** the DOM nodes outlive every run, so each rebuild's instance must take
+   *  its listeners with it — otherwise they stack up and one tap on Pause
+   *  toggles it open and shut again */
+  private listeners = new AbortController();
 
   init(ctx: GameContext): void {
     if (!isTouchDevice) return;
@@ -34,6 +38,7 @@ export class TouchControls implements System {
       this.stickNub,
       46,
       (axis) => this.input.setTouchAxis(axis),
+      this.listeners.signal,
     );
 
     this.bindButton(
@@ -51,17 +56,21 @@ export class TouchControls implements System {
     this.bindButton(this.btnPause, () => this.input.requestPause());
   }
 
+  dispose(): void {
+    this.listeners.abort();
+  }
+
   /** shared tap/hold mechanics for every on-screen button: capture the
    *  pointer on the element it landed on (so a finger dragging off the
    *  button doesn't leave it stuck "active"), and drive it off the raw
    *  pointer event rather than `click`, which depends on the browser
-   *  synthesizing one from the touch — that can lag or, in one observed
-   *  case, never fire at all. */
+   *  synthesizing one from the touch. */
   private bindButton(
     el: HTMLElement,
     onDown: () => void,
     onUp?: () => void,
   ): void {
+    const { signal } = this.listeners;
     el.addEventListener(
       "pointerdown",
       (e) => {
@@ -70,13 +79,13 @@ export class TouchControls implements System {
         el.classList.add("active");
         onDown();
       },
-      { passive: false },
+      { passive: false, signal },
     );
     const release = (): void => {
       el.classList.remove("active");
       onUp?.();
     };
-    el.addEventListener("pointerup", release);
-    el.addEventListener("pointercancel", release);
+    el.addEventListener("pointerup", release, { signal });
+    el.addEventListener("pointercancel", release, { signal });
   }
 }

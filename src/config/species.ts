@@ -35,7 +35,7 @@ export interface SpeciesProfile {
   lodLo: number;
   lodHi: number;
   /** which spawn pool this species is drawn from */
-  habitat: "open" | "reef" | "both";
+  habitat: "open" | "reef" | "deep" | "both";
   /** relative selection weight within its pool */
   weight: number;
   /** optional preferred depth band (world units); spawn skips a candidate
@@ -120,6 +120,60 @@ export const SPECIES: SpeciesProfile[] = [
     habitat: "open",
     weight: 0.6,
   },
+  {
+    id: "manta-giant",
+    draw: "rayGlide",
+    baseColor: 0x2c3e50,
+    glowColor: 0x34495e,
+    length: 14,
+    width: 18, // wide wingspan
+    lodLo: 0.1,
+    lodHi: 0.35,
+    habitat: "open",
+    weight: 0.15, // rare, majestic
+    depth: [50, 600],
+  },
+  {
+    id: "parrotfish-green",
+    draw: "bulkyFinned",
+    baseColor: 0x1abc9c,
+    glowColor: 0x16a085,
+    jitter: 0.4,
+    jitterColor: 0xf1c40f,
+    length: 8.5,
+    width: 4,
+    lodLo: 0.2,
+    lodHi: 0.6,
+    habitat: "reef",
+    weight: 1.2,
+    depth: [50, 800],
+  },
+  {
+    id: "abyssal-lantern",
+    draw: "dart",
+    baseColor: 0x111111,
+    glowColor: 0xf39c12, // high-contrast glow for the dark zone
+    length: 4,
+    width: 1.2,
+    lodLo: 0.35,
+    lodHi: 0.8,
+    habitat: "deep",
+    weight: 2.0,
+    depth: [3500, 9000],
+  },
+  {
+    id: "vampire-squid",
+    draw: "jellyBell", // umbrella-like drift, close enough to the jelly rig
+    baseColor: 0x641e16,
+    glowColor: 0xe74c3c,
+    length: 7,
+    width: 5,
+    lodLo: 0.2,
+    lodHi: 0.5,
+    habitat: "deep",
+    weight: 0.3,
+    depth: [6000, 11000],
+  },
 ];
 
 /** id -> index, mirrors `TI` in `config/tiles.ts` */
@@ -128,8 +182,12 @@ SPECIES.forEach((s, i) => (SI[s.id] = i));
 
 /** spawn pools by habitat (`"both"` species appear in both) */
 export const OPEN_POOL: number[] = SPECIES.flatMap((s, i) =>
-  s.habitat !== "reef" ? [i] : [],
+  s.habitat === "open" || s.habitat === "both" ? [i] : [],
 );
 export const REEF_POOL: number[] = SPECIES.flatMap((s, i) =>
-  s.habitat !== "open" ? [i] : [],
+  s.habitat === "reef" || s.habitat === "both" ? [i] : [],
+);
+/** deep-water species, spawned separately once the route passes the dark line */
+export const DEEP_POOL: number[] = SPECIES.flatMap((s, i) =>
+  s.habitat === "deep" ? [i] : [],
 );

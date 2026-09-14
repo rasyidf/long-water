@@ -409,6 +409,7 @@ export class Game {
       new ScoreHud(),
       new DepthRuler(),
       new Hints(),
+      this.pauseMenu,
       new TouchControls(),
     ];
   }

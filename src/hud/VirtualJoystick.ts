@@ -15,11 +15,18 @@ export class VirtualJoystick {
     private readonly nub: HTMLElement,
     private readonly radius: number,
     private readonly onChange: (axis: { x: number; y: number } | null) => void,
+    signal?: AbortSignal,
   ) {
-    zone.addEventListener("pointerdown", this.onDown, { passive: false });
-    zone.addEventListener("pointermove", this.onMove, { passive: false });
-    zone.addEventListener("pointerup", this.onUp);
-    zone.addEventListener("pointercancel", this.onUp);
+    zone.addEventListener("pointerdown", this.onDown, {
+      passive: false,
+      signal,
+    });
+    zone.addEventListener("pointermove", this.onMove, {
+      passive: false,
+      signal,
+    });
+    zone.addEventListener("pointerup", this.onUp, { signal });
+    zone.addEventListener("pointercancel", this.onUp, { signal });
   }
 
   private onDown = (e: PointerEvent): void => {
