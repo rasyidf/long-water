@@ -132,6 +132,7 @@ export class Game {
 
     await this.initRenderer(preview);
     mount.appendChild(this.app.canvas);
+    if (!preview) this.trackVisualViewport();
     // the graphics-quality render scale lands live: fewer pixels per frame is
     // the biggest single lever a low-end GPU has
     onQuality(() => this.applyRenderScale());
@@ -399,6 +400,19 @@ export class Game {
       new Hints(),
       new TouchControls(),
     ];
+  }
+
+  /** `resizeTo: window` only reacts to `window`'s own `resize` event, which
+   *  mobile Safari doesn't reliably fire when just the address-bar/toolbar
+   *  shows or hides — the canvas is then left sized for the wrong viewport
+   *  and the newly-revealed strip renders blank. `visualViewport` fires for
+   *  exactly this case, so force a resize off of it too. */
+  private trackVisualViewport(): void {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const sync = (): void => this.app.resize();
+    vv.addEventListener("resize", sync);
+    vv.addEventListener("scroll", sync);
   }
 
   /** device pixel ratio (capped at 2) scaled by the quality setting */

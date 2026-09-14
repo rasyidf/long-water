@@ -1581,3 +1581,33 @@ body:not([data-screen="play"]) .hud.keyhint {
 body.is-touch .instruments {
   bottom: calc(26px + env(safe-area-inset-bottom));
 }
+
+/* short viewports (phones, address-bar visible): the title screen's content
+   stack is taller than it has room for, and centering it with a flex
+   container leaves the top of the stack overflowing past the scrollable
+   area, so it reads as "clipped" rather than reachable by scrolling. Shrink
+   it to actually fit instead of relying on scroll. */
+@media (max-height: 700px) {
+  .screen {
+    padding: 18px max(20px, 6vw);
+  }
+  .title-logo {
+    width: min(190px, 46vw);
+    margin-bottom: 2px;
+  }
+  .title-tag {
+    margin: 0 0 14px;
+  }
+  .title-menu {
+    gap: 2px;
+  }
+  .tm-btn {
+    padding: 7px 16px;
+  }
+  .title-shelf {
+    margin-top: 12px;
+  }
+  .title-records {
+    margin: 8px 0 0;
+  }
+}
