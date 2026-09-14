@@ -39,6 +39,7 @@ import { Layers } from "./Layers";
 import { renderSystems, previewSimSystems } from "./renderStack";
 import { Rng } from "./rng";
 import type { System } from "./System";
+import { isTouchDevice } from "./touch";
 
 import { AlmanacSystem } from "../systems/AlmanacSystem";
 import { AudioSystem } from "../systems/AudioSystem";
@@ -124,11 +125,21 @@ export class Game {
     const preview = opts.preview ?? false;
     const report = opts.onProgress ?? ((): void => {});
     // hand the frame back to the browser so the splash can paint / animate
-    // between the heavy synchronous boot steps
+    // between the heavy synchronous boot steps. `requestAnimationFrame` can
+    // stall indefinitely on a throttled/backgrounded tab (low-power mode,
+    // an unfocused PWA launch) — race it against a plain timeout so boot
+    // never hangs waiting for a frame that isn't coming.
     const breathe = (): Promise<void> =>
-      new Promise<void>((r) =>
-        requestAnimationFrame(() => setTimeout(() => r(), 0)),
-      );
+      new Promise<void>((r) => {
+        let done = false;
+        const finish = (): void => {
+          if (done) return;
+          done = true;
+          r();
+        };
+        requestAnimationFrame(() => setTimeout(finish, 0));
+        setTimeout(finish, 500);
+      });
 
     await this.initRenderer(preview);
     mount.appendChild(this.app.canvas);
@@ -402,22 +413,50 @@ export class Game {
     ];
   }
 
-  /** `resizeTo: window` only reacts to `window`'s own `resize` event, which
-   *  mobile Safari doesn't reliably fire when just the address-bar/toolbar
-   *  shows or hides — the canvas is then left sized for the wrong viewport
-   *  and the newly-revealed strip renders blank. `visualViewport` fires for
-   *  exactly this case, so force a resize off of it too. */
+  /** `resizeTo: window` reacts only to `window`'s own `resize` event and
+   *  resizes to `window.innerWidth/innerHeight` — on mobile Safari neither of
+   *  those reliably tracks the address-bar/toolbar showing or hiding, so the
+   *  canvas is left sized for the wrong viewport and the newly-revealed strip
+   *  renders blank. `visualViewport` fires reliably for exactly this case and
+   *  reports the true visible size, so resize off of it directly instead of
+   *  going through `app.resize()` (which would just re-read the same stale
+   *  `window` dimensions).
+   *
+   *  Entering fullscreen and locking orientation (see `main.ts`) are two
+   *  more ways the visible area changes size that don't reliably fire a
+   *  `visualViewport` resize on every browser — `fullscreenchange` and
+   *  `orientationchange` are wired here too as belt and suspenders. Both
+   *  fire before the browser has necessarily finished the transition, so
+   *  each syncs once immediately and once again after it's had time to
+   *  settle. */
   private trackVisualViewport(): void {
     const vv = window.visualViewport;
-    if (!vv) return;
-    const sync = (): void => this.app.resize();
-    vv.addEventListener("resize", sync);
-    vv.addEventListener("scroll", sync);
+    const sync = (): void => {
+      const w = vv?.width ?? window.innerWidth;
+      const h = vv?.height ?? window.innerHeight;
+      this.app.renderer.resize(w, h);
+      this.app.render();
+    };
+    const syncSettled = (): void => {
+      sync();
+      setTimeout(sync, 300);
+    };
+    vv?.addEventListener("resize", sync);
+    vv?.addEventListener("scroll", sync);
+    document.addEventListener("fullscreenchange", syncSettled);
+    window.addEventListener("orientationchange", syncSettled);
   }
 
-  /** device pixel ratio (capped at 2) scaled by the quality setting */
+  /** device pixel ratio (capped at 2, lower on touch) scaled by the quality
+   *  setting. There's no API to ask a browser how much GPU memory it actually
+   *  has, so on phones — where even the "low" preset has been seen to only
+   *  paint part of the canvas, worsening as resolution goes up — the only
+   *  lever is to request fewer pixels outright, regardless of preset. */
   private renderResolution(): number {
-    return Math.min(window.devicePixelRatio || 1, 2) * quality().renderScale;
+    const dprCap = isTouchDevice ? 1.5 : 2;
+    return (
+      Math.min(window.devicePixelRatio || 1, dprCap) * quality().renderScale
+    );
   }
 
   /** create the Pixi renderer. Some mobile GPUs reject a WebGL context

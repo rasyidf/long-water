@@ -36,26 +36,45 @@ export class TouchControls implements System {
       (axis) => this.input.setTouchAxis(axis),
     );
 
-    this.bindButton(this.btnSing, "Space");
-    this.bindButton(this.btnSurge, "ShiftLeft");
-
-    this.btnPause.addEventListener("click", () => this.input.requestPause());
+    this.bindButton(
+      this.btnSing,
+      () => this.input.setKey("Space", true),
+      () => this.input.setKey("Space", false),
+    );
+    this.bindButton(
+      this.btnSurge,
+      () => this.input.setKey("ShiftLeft", true),
+      () => this.input.setKey("ShiftLeft", false),
+    );
+    // fires once on press, same capture mechanics as the hold buttons above
+    // (no release action — a tap, not a hold)
+    this.bindButton(this.btnPause, () => this.input.requestPause());
   }
 
-  private bindButton(el: HTMLElement, code: string): void {
+  /** shared tap/hold mechanics for every on-screen button: capture the
+   *  pointer on the element it landed on (so a finger dragging off the
+   *  button doesn't leave it stuck "active"), and drive it off the raw
+   *  pointer event rather than `click`, which depends on the browser
+   *  synthesizing one from the touch — that can lag or, in one observed
+   *  case, never fire at all. */
+  private bindButton(
+    el: HTMLElement,
+    onDown: () => void,
+    onUp?: () => void,
+  ): void {
     el.addEventListener(
       "pointerdown",
       (e) => {
         e.preventDefault();
         el.setPointerCapture(e.pointerId);
         el.classList.add("active");
-        this.input.setKey(code, true);
+        onDown();
       },
       { passive: false },
     );
     const release = (): void => {
       el.classList.remove("active");
-      this.input.setKey(code, false);
+      onUp?.();
     };
     el.addEventListener("pointerup", release);
     el.addEventListener("pointercancel", release);

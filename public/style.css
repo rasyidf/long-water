@@ -9,6 +9,13 @@
 
 * {
   box-sizing: border-box;
+  /* this is a game surface, not a document: no text selection, no callout
+     menu on long-press, no drag-to-copy, no tap flash */
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-user-drag: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 html,
@@ -1508,14 +1515,22 @@ body:not([data-screen="play"]) .hud.keyhint {
   border: 1px solid rgba(159, 232, 213, 0.55);
 }
 
+/* side by side rather than stacked: a thumb resting at the bottom-right
+   corner sweeps left-right far more comfortably than it reaches straight up
+   — Surge (DOM order: second) lands closest to the corner, Sing sits up and
+   to its left along that same natural arc rather than directly above it */
 .touch-buttons {
   position: absolute;
-  right: calc(22px + env(safe-area-inset-right));
-  bottom: calc(22px + env(safe-area-inset-bottom));
+  right: calc(20px + env(safe-area-inset-right));
+  bottom: calc(20px + env(safe-area-inset-bottom));
   display: flex;
-  flex-direction: column;
-  gap: 14px;
+  flex-direction: row;
+  align-items: flex-end;
+  gap: 16px;
   pointer-events: auto;
+}
+.touch-btn.sing {
+  margin-bottom: 34px;
 }
 .touch-btn {
   appearance: none;
@@ -1548,10 +1563,14 @@ body:not([data-screen="play"]) .hud.keyhint {
   background: rgba(255, 156, 91, 0.22);
 }
 
+/* top-left, independent of .topbar (its mask-image + backdrop-filter +
+   pointer-events:none combination was unreliable for a masked-in child's
+   pointer-events:auto override on Safari). Top-right was the Control
+   Center swipe zone; left avoids that specific corner. */
 .touch-pause {
   position: absolute;
-  top: calc(14px + env(safe-area-inset-top));
-  right: calc(14px + env(safe-area-inset-right));
+  top: calc(16px + env(safe-area-inset-top));
+  left: calc(16px + env(safe-area-inset-left));
   width: 40px;
   height: 40px;
   display: flex;
@@ -1576,10 +1595,173 @@ body:not([data-screen="play"]) .hud.keyhint {
   opacity: 0.75;
 }
 
-/* touch devices: keep the instrument panel clear of the thumb zone, and give
-   the pause button room under a notch/home-indicator */
+/* touch devices: the informational HUD (topbar, instruments, ruler, hints)
+   eats a lot more of a phone's limited screen than a desktop's — shrink it.
+   Touch *controls* (joystick, buttons, pause) are left at their current
+   size: those are tap targets, not readouts. */
+body.is-touch .topbar {
+  padding: 10px 16px 12px;
+  gap: 14px;
+}
+body.is-touch .tb-zone {
+  font-size: 16px;
+}
+body.is-touch .tb-zone .leg {
+  font-size: 10.5px;
+}
+body.is-touch .compass .strip {
+  width: min(160px, 20vw);
+}
+body.is-touch .compass .pole {
+  font-size: 10px;
+}
+body.is-touch .goal {
+  font-size: 11px;
+  margin-top: 6px;
+}
+body.is-touch .tb-score b {
+  font-size: 18px;
+}
+body.is-touch .tb-gauge {
+  font-size: 12px;
+  gap: 7px;
+}
+body.is-touch .tb-gauge .tb-ico {
+  width: 14px;
+  height: 14px;
+}
 body.is-touch .instruments {
   bottom: calc(26px + env(safe-area-inset-bottom));
+  width: 170px;
+  padding: 7px 10px;
+  gap: 6px;
+}
+body.is-touch .meter {
+  margin-bottom: 5px;
+}
+body.is-touch .meter .label {
+  font-size: 9.5px;
+  margin-bottom: 3px;
+}
+body.is-touch .meter .label .pct {
+  font-size: 9px;
+}
+body.is-touch .meter .track {
+  height: 4px;
+}
+body.is-touch .pod {
+  margin-top: 5px;
+  font-size: 9px;
+  gap: 5px;
+}
+body.is-touch .pod .pod-mark {
+  width: 9px;
+  height: 9px;
+}
+body.is-touch .ruler,
+body.is-touch .ruler canvas {
+  width: 92px;
+}
+
+/* .title-left/.title-right group the title screen's content for the
+   two-column touch layout below, but stay invisible to layout otherwise —
+   their children act as direct flex items of .screen.title, so desktop's
+   single centered column is unchanged. */
+.title-left,
+.title-right {
+  display: contents;
+}
+/* touch/mobile: landscape-only (see the rotate-prompt below), so width is
+   the abundant dimension and height the scarce one — put the logo and menu
+   side by side instead of stacking them */
+body.is-touch .screen.title {
+  flex-direction: row;
+  justify-content: center;
+  gap: 6vw;
+  padding: 16px max(20px, 4vw);
+}
+body.is-touch .title-left {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: none;
+}
+body.is-touch .title-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+  flex: none;
+}
+body.is-touch .title-logo {
+  width: min(140px, 32vh);
+  margin: 0 0 6px;
+}
+body.is-touch .title-tag {
+  font-size: 12px;
+  margin: 0;
+  text-align: center;
+}
+body.is-touch .title-menu {
+  width: min(230px, 42vh);
+  gap: 3px;
+}
+body.is-touch .tm-btn {
+  padding: 7px 14px;
+}
+body.is-touch .title-shelf {
+  margin-top: 10px;
+}
+body.is-touch .title-records {
+  margin: 8px 0 0;
+}
+
+/* touch/mobile: the layout is landscape-only — block play in portrait
+   rather than let the HUD and two-column title layout squeeze into a
+   viewport they weren't designed for. manifest.webmanifest's `orientation`
+   and main.ts's screen.orientation.lock() attempt request landscape
+   directly, but neither is guaranteed on every browser (notably iOS
+   Safari), so this is the reliable fallback. */
+.rotate-prompt {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  background: var(--abyss);
+  color: var(--bone);
+  text-align: center;
+  padding: 20px;
+}
+.rotate-prompt svg {
+  width: 64px;
+  height: 64px;
+  color: var(--song);
+  opacity: 0.8;
+  animation: rotate-hint 1.8s ease-in-out infinite;
+}
+.rotate-prompt p {
+  font-size: 15px;
+  letter-spacing: 0.03em;
+  opacity: 0.75;
+  margin: 0;
+}
+@keyframes rotate-hint {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  50% {
+    transform: rotate(-90deg);
+  }
+}
+@media (orientation: portrait) {
+  body.is-touch .rotate-prompt {
+    display: flex;
+  }
 }
 
 /* short viewports (phones, address-bar visible): the title screen's content

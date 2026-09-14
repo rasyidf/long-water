@@ -47,6 +47,34 @@
          drives it; the game never reloads the page after the initial boot. -->
     <div class="curtain" id="curtain"></div>
 
+    <!-- Touch devices only, portrait only: the layout is landscape-only (see
+         manifest.webmanifest's `orientation` and main.ts's orientation
+         lock attempt — neither is guaranteed on every browser), so this
+         blocks play until the phone is turned. -->
+    <div class="rotate-prompt">
+      <svg viewBox="0 0 40 40" aria-hidden="true">
+        <rect
+          x="9"
+          y="4"
+          width="22"
+          height="32"
+          rx="3"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+        />
+        <path
+          d="M31 20a11 11 0 1 1-3.6-8.1"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+        />
+        <path d="M31 8v7h-7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+      </svg>
+      <p>Turn your phone sideways to play</p>
+    </div>
+
     <!-- ============================ gameplay HUD ============================
          Hidden (via body[data-screen]) whenever the title or end screen is up;
          the world keeps rendering a frozen frame behind them either way. -->
@@ -134,6 +162,14 @@
           <span>Surge</span>
         </button>
       </div>
+      <!-- top-left, a direct sibling here rather than nested in .topbar:
+           .topbar's mask-image + backdrop-filter + pointer-events:none
+           combination was unreliable for a masked-in child's
+           pointer-events:auto override on Safari. Top-right was the
+           system's Control Center swipe zone; this is a second attempt at
+           the top edge now that the app forces fullscreen/locked
+           landscape, which changes how much of the top strip the OS
+           reserves. -->
       <button type="button" class="touch-pause" id="btnPause" aria-label="Pause">
         <span></span><span></span>
       </button>
@@ -155,38 +191,46 @@
     <!-- title screen: New Game / Continue / Multiplayer (disabled) / Options,
          a trophy shelf, and the almanac entry point -->
     <div class="screen title" id="title">
-      <img src="/logo.png" alt="Long Water" class="title-logo" />
-      <p class="title-tag">one leg of the migration</p>
+      <!-- .title-left/.title-right are `display: contents` by default (see
+           style.css) — invisible to layout, so desktop's single centered
+           column is unchanged. Touch/mobile switches them to a real
+           two-column row: logo on the left, menu + shelf on the right. -->
+      <div class="title-left">
+        <img src="/logo.png" alt="Long Water" class="title-logo" />
+        <p class="title-tag">one leg of the migration</p>
+      </div>
 
-      <nav class="title-menu">
-        <button type="button" class="tm-btn" data-act="new">
-          <span class="lbl">New Game</span>
-        </button>
-        <button type="button" class="tm-btn" data-act="continue">
-          <span class="lbl">Continue</span><small></small>
-        </button>
-        <button type="button" class="tm-btn" data-act="multiplayer" disabled>
-          <span class="lbl">Multiplayer</span><small></small>
-        </button>
-        <button type="button" class="tm-btn" data-act="options">
-          <span class="lbl">Options</span>
-        </button>
-        <button type="button" class="tm-btn" data-act="almanac">
-          <span class="lbl">Almanac</span><small></small>
-        </button>
-        <button type="button" class="tm-btn" data-act="credits">
-          <span class="lbl">Credits</span>
-        </button>
-      </nav>
+      <div class="title-right">
+        <nav class="title-menu">
+          <button type="button" class="tm-btn" data-act="new">
+            <span class="lbl">New Game</span>
+          </button>
+          <button type="button" class="tm-btn" data-act="continue">
+            <span class="lbl">Continue</span><small></small>
+          </button>
+          <button type="button" class="tm-btn" data-act="multiplayer" disabled>
+            <span class="lbl">Multiplayer</span><small></small>
+          </button>
+          <button type="button" class="tm-btn" data-act="options">
+            <span class="lbl">Options</span>
+          </button>
+          <button type="button" class="tm-btn" data-act="almanac">
+            <span class="lbl">Almanac</span><small></small>
+          </button>
+          <button type="button" class="tm-btn" data-act="credits">
+            <span class="lbl">Credits</span>
+          </button>
+        </nav>
 
-      <button
-        type="button"
-        class="title-shelf"
-        data-act="trophies"
-        aria-label="Trophies"
-      ></button>
-      <p class="title-records"></p>
-      <p class="title-note" id="titleNote"></p>
+        <button
+          type="button"
+          class="title-shelf"
+          data-act="trophies"
+          aria-label="Trophies"
+        ></button>
+        <p class="title-records"></p>
+        <p class="title-note" id="titleNote"></p>
+      </div>
     </div>
 
     <!-- end-of-run screen: result + tally, then back to title or swim again -->

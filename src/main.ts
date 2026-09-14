@@ -2,6 +2,12 @@ import { Game, type BootPhase } from "./core/Game";
 import { isTouchDevice } from "./core/touch";
 import { t } from "./i18n";
 
+// this is a game surface, not a document: no right-click/long-press context
+// menu, and no iOS Safari pinch-zoom (the `user-scalable=no` viewport meta
+// alone doesn't stop the pinch gesture itself, only double-tap-to-zoom).
+addEventListener("contextmenu", (e) => e.preventDefault());
+addEventListener("gesturestart", (e) => e.preventDefault());
+
 // PWA: offline shell + installability. Safe to skip in dev (vite serves over
 // http, and browsers refuse to register a worker there) or if unsupported.
 if ("serviceWorker" in navigator && location.protocol === "https:") {
@@ -9,6 +15,27 @@ if ("serviceWorker" in navigator && location.protocol === "https:") {
     navigator.serviceWorker.register("/sw.js").catch((err) => {
       console.warn("service worker registration failed", err);
     });
+  });
+}
+
+// Touch devices: known this early (before boot) so the portrait
+// rotate-prompt (style.css) can show immediately rather than waiting for
+// `TouchControls` to add the same class mid-boot.
+if (isTouchDevice) document.body.classList.add("is-touch");
+
+// best-effort landscape lock: works on Android Chrome (requires fullscreen
+// first), does nothing on iOS Safari (unsupported there at all) — the
+// rotate-prompt is the layout's real guarantee, this is just a nicety where
+// it's available.
+function lockLandscape(): void {
+  // `lock` is part of the Screen Orientation API spec but missing from
+  // lib.dom's `ScreenOrientation` type; unsupported browsers (all of iOS
+  // Safari) just won't have the method at runtime either.
+  const orientation = screen.orientation as ScreenOrientation & {
+    lock?: (orientation: string) => Promise<void>;
+  };
+  orientation.lock?.("landscape").catch(() => {
+    /* unsupported or refused — rotate-prompt covers it */
   });
 }
 
@@ -22,10 +49,17 @@ if (isTouchDevice) {
     // `standalone` is Safari-only (home-screen launch), not in lib.dom types
     const standalone = (navigator as Navigator & { standalone?: boolean })
       .standalone;
-    if (document.fullscreenElement || standalone) return;
-    document.documentElement.requestFullscreen?.().catch(() => {
-      /* declined or unsupported — the game still plays, just chromed */
-    });
+    if (document.fullscreenElement || standalone) {
+      lockLandscape();
+      return;
+    }
+    document.documentElement
+      .requestFullscreen?.()
+      .then(lockLandscape)
+      .catch(() => {
+        /* declined or unsupported — the game still plays, just chromed */
+        lockLandscape();
+      });
   };
   addEventListener("pointerdown", goFullscreen, { once: true });
 }
