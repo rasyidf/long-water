@@ -6,6 +6,8 @@
  *  - following: the full follower stack — wake anchor + leader-velocity match +
  *    catch-up + idle-leader fluidity + separation + seabed/surface springs +
  *    ship-noise dive, plus hunger accrual / krill foraging / stress break-off.
+ *    A settled, shallow-enough follower also breaches on its own now and
+ *    then — the launch briefly overrides everything else (`breachT`).
  *
  * Everything is folded into a desired velocity, then handed to `stepLocomotion`
  * as a critically-damped approach force.
@@ -20,6 +22,14 @@ import type { Intent } from "./locomotion";
 
 /** desired velocity → force gain; matches the old `v += (want-v)*min(1,dt*3)` */
 const APPROACH_GAIN = 3;
+
+/** per-second chance a settled, shallow-enough follower breaches on its own */
+const BREACH_CHANCE = 0.015;
+/** seconds the forced upward launch overrides formation steering */
+const BREACH_DURATION = 1.1;
+/** seconds before the same whale is eligible to breach again, min + rng spread */
+const BREACH_COOL_MIN = 14;
+const BREACH_COOL_SPREAD = 20;
 
 /** Fast euclidean distance helper (Math.hypot is notoriously slow in V8) */
 const dist = (dx: number, dy: number) => Math.sqrt(dx * dx + dy * dy);
@@ -125,6 +135,17 @@ export class PodBrain {
     const b = w.body;
     const des = this.des;
 
+    // 0. An in-progress breach launch overrides formation steering entirely
+    // until it lapses — same idea as the player's tail-kick, just brain-driven.
+    if (w.breachT > 0) {
+      w.breachT -= dt;
+      des.x = b.facing * 260;
+      des.y = -640; // clears breachVy (470) with room, without going absurd
+      this.out.ax = (des.x - b.vx) * APPROACH_GAIN * 1.6;
+      this.out.ay = (des.y - b.vy) * APPROACH_GAIN * 1.6;
+      return;
+    }
+
     // 1. Formation Anchor (wake targeting)
     const lead = 420 + w.slot * 260;
     const side = (w.slot % 2 !== 0 ? 1 : -1) * (120 + w.slot * 22);
@@ -136,6 +157,20 @@ export class PodBrain {
     const wdx = whale.x - b.x;
     const wdy = whale.y - b.y;
     const gap = dist(wdx, wdy);
+
+    // 2b. A settled, shallow-enough follower occasionally breaches on its own
+    w.breachCool -= dt;
+    if (
+      w.breachCool <= 0 &&
+      gap < 1200 &&
+      w.stress < 3 &&
+      b.y > 60 &&
+      b.y < 700 &&
+      Math.random() < dt * BREACH_CHANCE
+    ) {
+      w.breachT = BREACH_DURATION;
+      w.breachCool = BREACH_COOL_MIN + Math.random() * BREACH_COOL_SPREAD;
+    }
 
     if (gap > 1500) {
       const catchUp = clamp01((gap - 1500) / 2500);

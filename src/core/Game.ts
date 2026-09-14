@@ -34,11 +34,12 @@ import { Camera } from "./Camera";
 import { Clock } from "./Clock";
 import { EventBus } from "./EventBus";
 import type { GameContext } from "./GameContext";
-import { Input } from "./Input";
+import { Input } from "./input/Input";
 import { Layers } from "./Layers";
 import { renderSystems, previewSimSystems } from "./renderStack";
 import { Rng } from "./rng";
 import type { System } from "./System";
+import { isTouchDevice } from "./touch";
 
 import { AlmanacSystem } from "../systems/AlmanacSystem";
 import { AudioSystem } from "../systems/AudioSystem";
@@ -63,6 +64,7 @@ import { ScoreHud } from "../hud/ScoreHud";
 import { PauseMenu } from "../hud/PauseMenu";
 import { onQuality, quality } from "../state/Quality";
 import { FrontEnd } from "../menu/FrontEnd";
+import { TouchControls } from "../hud/TouchControls";
 
 /** Ordered boot milestones, reported to `boot`'s `onProgress` for the splash. */
 export type BootPhase = "renderer" | "world" | "systems" | "warmup" | "ready";
@@ -103,7 +105,7 @@ interface WorldState {
 }
 
 export class Game {
-  private app = new Application();
+  private app: Application = new Application();
   private clock = new Clock();
   private input = new Input();
   private profile = new Profile();
@@ -123,22 +125,25 @@ export class Game {
     const preview = opts.preview ?? false;
     const report = opts.onProgress ?? ((): void => {});
     // hand the frame back to the browser so the splash can paint / animate
-    // between the heavy synchronous boot steps
+    // between the heavy synchronous boot steps. `requestAnimationFrame` can
+    // stall indefinitely on a throttled/backgrounded tab (low-power mode,
+    // an unfocused PWA launch) — race it against a plain timeout so boot
+    // never hangs waiting for a frame that isn't coming.
     const breathe = (): Promise<void> =>
-      new Promise<void>((r) =>
-        requestAnimationFrame(() => setTimeout(() => r(), 0)),
-      );
+      new Promise<void>((r) => {
+        let done = false;
+        const finish = (): void => {
+          if (done) return;
+          done = true;
+          r();
+        };
+        requestAnimationFrame(() => setTimeout(finish, 0));
+        setTimeout(finish, 500);
+      });
 
-    await this.app.init({
-      ...(preview
-        ? { width: PREVIEW_SIZE.w, height: PREVIEW_SIZE.h }
-        : { resizeTo: window }),
-      antialias: true,
-      background: C.abyss,
-      resolution: this.renderResolution(),
-      autoDensity: true,
-    });
+    await this.initRenderer(preview);
     mount.appendChild(this.app.canvas);
+    if (!preview) this.trackVisualViewport();
     // the graphics-quality render scale lands live: fewer pixels per frame is
     // the biggest single lever a low-end GPU has
     onQuality(() => this.applyRenderScale());
@@ -405,12 +410,83 @@ export class Game {
       new DepthRuler(),
       new Hints(),
       this.pauseMenu,
+      new TouchControls(),
     ];
   }
 
-  /** device pixel ratio (capped at 2) scaled by the quality setting */
+  /** `resizeTo: window` reacts only to `window`'s own `resize` event and
+   *  resizes to `window.innerWidth/innerHeight` — on mobile Safari neither of
+   *  those reliably tracks the address-bar/toolbar showing or hiding, so the
+   *  canvas is left sized for the wrong viewport and the newly-revealed strip
+   *  renders blank. `visualViewport` fires reliably for exactly this case and
+   *  reports the true visible size, so resize off of it directly instead of
+   *  going through `app.resize()` (which would just re-read the same stale
+   *  `window` dimensions).
+   *
+   *  Entering fullscreen and locking orientation (see `main.ts`) are two
+   *  more ways the visible area changes size that don't reliably fire a
+   *  `visualViewport` resize on every browser — `fullscreenchange` and
+   *  `orientationchange` are wired here too as belt and suspenders. Both
+   *  fire before the browser has necessarily finished the transition, so
+   *  each syncs once immediately and once again after it's had time to
+   *  settle. */
+  private trackVisualViewport(): void {
+    const vv = window.visualViewport;
+    const sync = (): void => {
+      const w = vv?.width ?? window.innerWidth;
+      const h = vv?.height ?? window.innerHeight;
+      this.app.renderer.resize(w, h);
+      this.app.render();
+    };
+    const syncSettled = (): void => {
+      sync();
+      setTimeout(sync, 300);
+    };
+    vv?.addEventListener("resize", sync);
+    vv?.addEventListener("scroll", sync);
+    document.addEventListener("fullscreenchange", syncSettled);
+    window.addEventListener("orientationchange", syncSettled);
+  }
+
+  /** device pixel ratio (capped at 2, lower on touch) scaled by the quality
+   *  setting. There's no API to ask a browser how much GPU memory it actually
+   *  has, so on phones — where even the "low" preset has been seen to only
+   *  paint part of the canvas, worsening as resolution goes up — the only
+   *  lever is to request fewer pixels outright, regardless of preset. */
   private renderResolution(): number {
-    return Math.min(window.devicePixelRatio || 1, 2) * quality().renderScale;
+    const dprCap = isTouchDevice ? 1.5 : 2;
+    return (
+      Math.min(window.devicePixelRatio || 1, dprCap) * quality().renderScale
+    );
+  }
+
+  /** create the Pixi renderer. Some mobile GPUs reject a WebGL context
+   *  requested with antialiasing / a high device-pixel resolution but accept
+   *  a plainer one, so a first failure gets one retry on a fresh Application
+   *  with those attributes stripped before boot gives up entirely. */
+  private async initRenderer(preview: boolean): Promise<void> {
+    const size = preview
+      ? { width: PREVIEW_SIZE.w, height: PREVIEW_SIZE.h }
+      : { resizeTo: window };
+    try {
+      await this.app.init({
+        ...size,
+        antialias: true,
+        background: C.abyss,
+        resolution: this.renderResolution(),
+        autoDensity: true,
+      });
+    } catch (err) {
+      console.warn("renderer init failed, retrying with reduced settings", err);
+      this.app = new Application();
+      await this.app.init({
+        ...size,
+        antialias: false,
+        background: C.abyss,
+        resolution: 1,
+        autoDensity: true,
+      });
+    }
   }
 
   private applyRenderScale(): void {
@@ -425,6 +501,7 @@ export class Game {
     this.clock.tick(nowMs);
     const { ctx } = this;
 
+    ctx.input.poll();
     if (ctx.running) {
       for (const s of this.systems) s.update?.(this.clock.dt, ctx);
     }
@@ -454,8 +531,13 @@ export class Game {
    * the Pixi ticker's job; `boot`'s warm-up calls `app.render()` itself. */
   private renderScene(): void {
     const { ctx } = this;
-    ctx.camera.vw = this.app.renderer.width / this.app.renderer.resolution;
-    ctx.camera.vh = this.app.renderer.height / this.app.renderer.resolution;
+    // `screen` is already in CSS/logical units — dividing by `resolution`
+    // here shrank the camera viewport by exactly that factor, so the world
+    // only painted 1/resolution of the canvas and the rest stayed at the
+    // clear colour. Invisible at resolution 1 (a plain desktop display),
+    // obvious on a phone.
+    ctx.camera.vw = this.app.renderer.screen.width;
+    ctx.camera.vh = this.app.renderer.screen.height;
     for (const s of this.systems) s.render?.(ctx);
   }
 }

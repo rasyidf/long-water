@@ -5,9 +5,13 @@
 import { DARK_FULL, UNIT_M } from "../config/constants";
 import type { GameContext } from "../core/GameContext";
 import type { System } from "../core/System";
+import { isTouchDevice } from "../core/touch";
 
-const W = 120;
-const SPINE = 86; // x of the vertical scale line
+// narrower on touch to match the shrunk `.ruler` CSS width (see
+// body.is-touch rules in style.css) — SPINE scales with W so the sonar
+// dish and scale keep their proportions instead of stretching
+const W = isTouchDevice ? 92 : 120;
+const SPINE = isTouchDevice ? 66 : 86; // x of the vertical scale line
 const MAX_D = 500; // metres the scale runs to
 const SPAN_MIN = 160; // px length of the scale, clamped between these
 const SPAN_MAX = 340;

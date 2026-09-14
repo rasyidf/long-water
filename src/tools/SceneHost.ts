@@ -27,7 +27,7 @@ import { Camera } from "../core/Camera";
 import { Clock } from "../core/Clock";
 import { EventBus } from "../core/EventBus";
 import type { GameContext } from "../core/GameContext";
-import { Input } from "../core/Input";
+import { Input } from "../core/input/Input";
 import { Layers } from "../core/Layers";
 import { setFlatLight } from "../core/light";
 import { previewSimSystems, renderSystems } from "../core/renderStack";
@@ -176,8 +176,8 @@ export class SceneHost {
     const ctx = this.ctx;
     if (!ctx) return;
 
-    this.camera.vw = this.app.renderer.width / this.app.renderer.resolution;
-    this.camera.vh = this.app.renderer.height / this.app.renderer.resolution;
+    this.camera.vw = this.app.renderer.screen.width;
+    this.camera.vh = this.app.renderer.screen.height;
     for (const s of this.systems) s.update?.(this.clock.dt, ctx);
     for (const s of this.systems) s.render?.(ctx);
 

@@ -4,9 +4,11 @@
  * stream, so per-fish values stay identical to the pre-species spawner; only
  * what spawns *after* schools shifts for a given seed.
  */
+import { DARK_START } from "../config/constants";
 import type { Rng } from "../core/rng";
 import type { Fish, School } from "../state/Fauna";
 import {
+  DEEP_POOL,
   OPEN_POOL,
   REEF_POOL,
   SPECIES,
@@ -21,10 +23,11 @@ function inBand(p: SpeciesProfile, y: number): boolean {
  *  excludes `y`; falls back to the unfiltered pool if that leaves nothing. */
 export function pickSpecies(
   rng: Rng,
-  habitat: "open" | "reef",
+  habitat: "open" | "reef" | "deep",
   y: number,
 ): number {
-  const base = habitat === "reef" ? REEF_POOL : OPEN_POOL;
+  const base =
+    habitat === "reef" ? REEF_POOL : habitat === "deep" ? DEEP_POOL : OPEN_POOL;
   const pool = base.filter((i) => inBand(SPECIES[i], y));
   const use = pool.length ? pool : base;
   let total = 0;
@@ -69,7 +72,8 @@ export function makeSchool(
     });
 
   const ph = rng.next() * 9;
-  const species = over.species ?? pickSpecies(rng, reef ? "reef" : "open", y);
+  const habitat = reef ? "reef" : y >= DARK_START ? "deep" : "open";
+  const species = over.species ?? pickSpecies(rng, habitat, y);
 
   return {
     x,

@@ -9,6 +9,13 @@
 
 * {
   box-sizing: border-box;
+  /* this is a game surface, not a document: no text selection, no callout
+     menu on long-press, no drag-to-copy, no tap flash */
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-user-drag: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 html,
@@ -68,16 +75,6 @@ body {
   display: flex;
   align-items: center;
   gap: 12px;
-}
-.tb-left .wave-mark {
-  width: 30px;
-  height: 20px;
-  flex: none;
-  fill: none;
-  stroke: var(--song);
-  stroke-width: 1.6;
-  stroke-linecap: round;
-  opacity: 0.6;
 }
 .tb-zone {
   font-family: Georgia, "Times New Roman", serif;
@@ -1031,6 +1028,33 @@ body:not([data-screen="play"]) .hud.keyhint {
   background: rgba(217, 96, 63, 0.14);
 }
 
+/* -- credits -- */
+.credits-made {
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  opacity: 0.4;
+  margin: 0 0 8px;
+}
+.credits-name {
+  font-size: 16px;
+  margin: 0 0 18px;
+}
+.credits-link {
+  display: inline-block;
+  color: var(--song);
+  text-decoration: none;
+  border-bottom: 1px solid rgba(159, 232, 213, 0.35);
+  font-size: 14px;
+  margin-bottom: 28px;
+  transition: border-color 0.15s ease;
+}
+.credits-link:hover,
+.credits-link:focus-visible {
+  border-color: var(--song);
+  outline: none;
+}
+
 /* -- graphics quality -- */
 .gfx-presets {
   display: flex;
@@ -1426,5 +1450,356 @@ body:not([data-screen="play"]) .hud.keyhint {
   .keyhint,
   .title-note {
     transition: none;
+  }
+}
+/* ---- touch controls (phones/tablets only, see TouchControls + isTouchDevice) ---- */
+.touch-controls {
+  inset: 0;
+}
+.touch-controls[hidden] {
+  display: none;
+}
+
+/* left-hand thumb zone: invisible until touched, then the base recentres to
+   wherever the finger landed ("floating" joystick) */
+.stick-zone {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: min(58vw, 420px);
+  height: min(52vh, 340px);
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
+  pointer-events: auto;
+  touch-action: none;
+}
+.stick-base {
+  position: absolute;
+  width: 92px;
+  height: 92px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: rgba(8, 20, 34, 0.45);
+  border: 1px solid rgba(159, 232, 213, 0.28);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.stick-base.show {
+  opacity: 1;
+}
+.stick-nub {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 42px;
+  height: 42px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at 34% 30%,
+    rgba(159, 232, 213, 0.55),
+    rgba(98, 199, 187, 0.32)
+  );
+  border: 1px solid rgba(159, 232, 213, 0.55);
+}
+
+/* Action buttons sit on an arc swept by the right thumb pivoting at the
+   bottom-right corner — roughly equal reach to each, the way console-style
+   virtual pads lay them out. Surge (held constantly) takes the low, nearest
+   spot; Sing rides further up the arc. The container is just a positioning
+   frame, so it stays click-through. */
+.touch-buttons {
+  position: absolute;
+  right: env(safe-area-inset-right);
+  bottom: env(safe-area-inset-bottom);
+  width: 200px;
+  height: 200px;
+  pointer-events: none;
+}
+.touch-btn.surge {
+  right: 78px;
+  bottom: 30px;
+}
+.touch-btn.sing {
+  right: 14px;
+  bottom: 96px;
+}
+.touch-btn {
+  position: absolute;
+  pointer-events: auto;
+  appearance: none;
+  width: 76px;
+  height: 76px;
+  border-radius: 50%;
+  border: 1px solid rgba(159, 232, 213, 0.3);
+  background: rgba(8, 20, 34, 0.5);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  color: var(--song);
+  font-size: 12px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    background 0.12s ease,
+    transform 0.12s ease;
+}
+.touch-btn.surge {
+  color: var(--krill);
+  border-color: rgba(255, 156, 91, 0.35);
+}
+.touch-btn.active {
+  transform: scale(0.92);
+  background: rgba(159, 232, 213, 0.22);
+}
+.touch-btn.surge.active {
+  background: rgba(255, 156, 91, 0.22);
+}
+
+/* Takes over the slot the (purely decorative) wave mark used to hold at the
+   head of the topbar — but stays a sibling of .topbar rather than a child:
+   .topbar's mask-image + backdrop-filter + pointer-events:none combination
+   was unreliable for a masked-in child's pointer-events:auto override on
+   Safari. Offsets mirror the topbar's own padding so it lands in that slot;
+   `body.is-touch .tb-left` reserves the width for it. */
+.touch-pause {
+  position: absolute;
+  top: calc(8px + env(safe-area-inset-top));
+  left: calc(16px + env(safe-area-inset-left));
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  appearance: none;
+  border-radius: 50%;
+  border: 1px solid rgba(159, 232, 213, 0.28);
+  background: rgba(8, 20, 34, 0.4);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  pointer-events: auto;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+.touch-pause.active {
+  transform: scale(0.92);
+  background: rgba(159, 232, 213, 0.22);
+}
+.touch-pause span {
+  width: 3px;
+  height: 14px;
+  border-radius: 2px;
+  background: var(--bone);
+  opacity: 0.75;
+}
+
+/* touch devices: the informational HUD (topbar, instruments, ruler, hints)
+   eats a lot more of a phone's limited screen than a desktop's — shrink it.
+   Touch *controls* (joystick, buttons, pause) are left at their current
+   size: those are tap targets, not readouts. */
+body.is-touch .topbar {
+  padding: 10px 16px 12px;
+  padding-left: calc(16px + env(safe-area-inset-left));
+  padding-right: calc(16px + env(safe-area-inset-right));
+  padding-top: calc(10px + env(safe-area-inset-top));
+  gap: 14px;
+}
+/* room at the head of the row for .touch-pause, which stands where the
+   wave mark used to and is positioned over this gap */
+body.is-touch .tb-left {
+  padding-left: 52px;
+}
+body.is-touch .tb-zone {
+  font-size: 16px;
+}
+body.is-touch .tb-zone .leg {
+  font-size: 10.5px;
+}
+body.is-touch .compass .strip {
+  width: min(160px, 20vw);
+}
+body.is-touch .compass .pole {
+  font-size: 10px;
+}
+body.is-touch .goal {
+  font-size: 11px;
+  margin-top: 6px;
+}
+body.is-touch .tb-score b {
+  font-size: 18px;
+}
+body.is-touch .tb-gauge {
+  font-size: 12px;
+  gap: 7px;
+}
+body.is-touch .tb-gauge .tb-ico {
+  width: 14px;
+  height: 14px;
+}
+body.is-touch .instruments {
+  bottom: calc(26px + env(safe-area-inset-bottom));
+  width: 170px;
+  padding: 7px 10px;
+  gap: 6px;
+}
+body.is-touch .meter {
+  margin-bottom: 5px;
+}
+body.is-touch .meter .label {
+  font-size: 9.5px;
+  margin-bottom: 3px;
+}
+body.is-touch .meter .label .pct {
+  font-size: 9px;
+}
+body.is-touch .meter .track {
+  height: 4px;
+}
+body.is-touch .pod {
+  margin-top: 5px;
+  font-size: 9px;
+  gap: 5px;
+}
+body.is-touch .pod .pod-mark {
+  width: 9px;
+  height: 9px;
+}
+body.is-touch .ruler,
+body.is-touch .ruler canvas {
+  width: 92px;
+}
+
+/* .title-left/.title-right group the title screen's content for the
+   two-column touch layout below, but stay invisible to layout otherwise —
+   their children act as direct flex items of .screen.title, so desktop's
+   single centered column is unchanged. */
+.title-left,
+.title-right {
+  display: contents;
+}
+/* touch/mobile: landscape-only (see the rotate-prompt below), so width is
+   the abundant dimension and height the scarce one — put the logo and menu
+   side by side instead of stacking them */
+body.is-touch .screen.title {
+  flex-direction: row;
+  justify-content: center;
+  gap: 6vw;
+  padding: 16px max(20px, 4vw);
+}
+body.is-touch .title-left {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: none;
+}
+body.is-touch .title-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+  flex: none;
+}
+body.is-touch .title-logo {
+  width: min(140px, 32vh);
+  margin: 0 0 6px;
+}
+body.is-touch .title-tag {
+  font-size: 12px;
+  margin: 0;
+  text-align: center;
+}
+body.is-touch .title-menu {
+  width: min(230px, 42vh);
+  gap: 3px;
+}
+body.is-touch .tm-btn {
+  padding: 7px 14px;
+}
+body.is-touch .title-shelf {
+  margin-top: 10px;
+}
+body.is-touch .title-records {
+  margin: 8px 0 0;
+}
+
+/* touch/mobile: the layout is landscape-only — block play in portrait
+   rather than let the HUD and two-column title layout squeeze into a
+   viewport they weren't designed for. manifest.webmanifest's `orientation`
+   and main.ts's screen.orientation.lock() attempt request landscape
+   directly, but neither is guaranteed on every browser (notably iOS
+   Safari), so this is the reliable fallback. */
+.rotate-prompt {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  background: var(--abyss);
+  color: var(--bone);
+  text-align: center;
+  padding: 20px;
+}
+.rotate-prompt svg {
+  width: 64px;
+  height: 64px;
+  color: var(--song);
+  opacity: 0.8;
+  animation: rotate-hint 1.8s ease-in-out infinite;
+}
+.rotate-prompt p {
+  font-size: 15px;
+  letter-spacing: 0.03em;
+  opacity: 0.75;
+  margin: 0;
+}
+@keyframes rotate-hint {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  50% {
+    transform: rotate(-90deg);
+  }
+}
+@media (orientation: portrait) {
+  body.is-touch .rotate-prompt {
+    display: flex;
+  }
+}
+
+/* short viewports (phones, address-bar visible): the title screen's content
+   stack is taller than it has room for, and centering it with a flex
+   container leaves the top of the stack overflowing past the scrollable
+   area, so it reads as "clipped" rather than reachable by scrolling. Shrink
+   it to actually fit instead of relying on scroll. */
+@media (max-height: 700px) {
+  .screen {
+    padding: 18px max(20px, 6vw);
+  }
+  .title-logo {
+    width: min(190px, 46vw);
+    margin-bottom: 2px;
+  }
+  .title-tag {
+    margin: 0 0 14px;
+  }
+  .title-menu {
+    gap: 2px;
+  }
+  .tm-btn {
+    padding: 7px 16px;
+  }
+  .title-shelf {
+    margin-top: 12px;
+  }
+  .title-records {
+    margin: 8px 0 0;
   }
 }

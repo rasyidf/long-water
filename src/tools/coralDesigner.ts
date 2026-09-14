@@ -244,8 +244,8 @@ export class CoralDesigner {
     if (!p.freeze) this.t += this.app.ticker.deltaMS / 1000;
     this.rebuildItems();
 
-    this.cam.vw = this.app.renderer.width / this.app.renderer.resolution;
-    this.cam.vh = this.app.renderer.height / this.app.renderer.resolution;
+    this.cam.vw = this.app.renderer.screen.width;
+    this.cam.vh = this.app.renderer.screen.height;
     // 1× fits the whole row; the items keep fixed world x so their genomes
     // (hashed off x) don't reshuffle as the zoom changes
     this.cam.scale = (p.zoom * this.cam.vw) / ((KIND_COUNT + 0.6) * PITCH);

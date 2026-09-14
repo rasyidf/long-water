@@ -47,8 +47,8 @@ tally is shown only on the end card.
                         │
           ┌─────────────┴──────────────┐
           ▼                            ▼
-  lunge-feed on krill          swim to a whale that
-  (surge through a swarm)      answered → it joins the pod
+  feed on krill                swim to a whale that
+  (swim through a swarm)       answered → it joins the pod
           │                            │
           ▼                            ▼
   reserves refill              pod drafts (cheaper travel) +
@@ -66,7 +66,7 @@ tally is shown only on the end card.
 | Resource | Range | Refills | Drains | Empty →|
 |---|---|---|---|---|
 | **Breath** | 0–100 | At the surface (fast: ~52/s) | Passively underwater; faster the deeper you are; faster while surging; singing costs a flat ~6, a tail-kick ~4 | Whale starts drowning; reserves bleed ~11/s |
-| **Reserves** (energy) | 0–100 | Lunge-feeding on a krill swarm | Passively while moving; faster while surging; **reduced the larger the pod is** (drafting) | **Loss condition** — the leg ends |
+| **Reserves** (energy) | 0–100 | Feeding on a krill swarm (automatic — no surge needed) | Passively while moving; faster while surging; **reduced the larger the pod is** (drafting) | **Loss condition** — the leg ends |
 
 Notes:
 
@@ -351,7 +351,7 @@ HUD/FX: `hint:show {text,secs}`, `fx:shake`, `fx:bubbles`.
 | `AudioSystem` | – | Owns the WebAudio graph. Ambient bed on `game:start`; renders `audio:call`; suspends on pause. |
 | `WhaleSystem` | ✓ | Moves **and** poses every whale (player + pod) in one pass: `PlayerBrain`/`PodBrain` → `stepLocomotion` → `stepPose`. Emits the surface/breach FX. `simulate: false` (preview) poses only. |
 | `VitalsSystem` | ✓ | Breath, reserves, drowning, drafting discount, and the two run-ending checks (`energy ≤ 0`, `x ≥ world.finishX`). |
-| `FeedingSystem` | ✓ | Lunge-feeding: while surging, converts nearby krill into reserves. |
+| `FeedingSystem` | ✓ | Feeding: automatically converts nearby krill into reserves — no longer requires surging. |
 | `SongSystem` | ✓ | The whole sonar mechanic: emit rings, propagate them, light what they sweep, schedule pod replies, decay the lit-seabed accumulator. |
 | `PodSystem` | ✓ | Pod *social* state machine only: answered→following recruit, answered/lost timeouts, a follower's periodic call. Steering lives in `systems/whale/PodBrain.ts` — followers: wake anchor + leader-velocity match + catch-up + separation + seabed/surface springs + ship-dive + hunger/krill foraging + stress break-off; wild/answered/lost: cruise-depth meander + breath cycle (climb to blow when air runs low) + answered homing. |
 | `KrillSystem` | ✓ | Swarm rotation, diel vertical migration, balling-up under threat. Only steps swarms near the camera. |

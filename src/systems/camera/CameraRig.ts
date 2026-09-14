@@ -123,15 +123,16 @@ export class CameraRig {
   breach(flips: number, up: number, now: number): void {
     const airT = clamp((2 * up) / GRAVITY, 0.35, 1.4);
     const big = flips >= 2;
+    const huge = up > 400;
     this.shot = "breach";
     this.hold = airT + 0.15;
-    this.zoomMulTarget = big ? 0.6 : 0.72;
+    this.zoomMulTarget = huge ? 0.52 : big ? 0.6 : 0.72;
     this.offYTarget = -0.17; // drop the whale below centre, reveal the sky
     this.offXTarget = 0;
-    this.rollShotTarget = big ? 0.024 : 0.017;
-    this.impY = -Math.min(220, up * 0.05);
-    this.slowUntil = now + Math.min(airT * 0.8, 0.75);
-    this.slowFloor = big ? 0.45 : 0.62;
+    this.rollShotTarget = big ? 0.028 : 0.019;
+    this.impY = -Math.min(240, up * 0.055);
+    this.slowUntil = now + Math.min(airT * 0.85, 0.85);
+    this.slowFloor = huge ? 0.38 : big ? 0.45 : 0.62;
   }
 
   /** a plain surface-break (no flip): a small, quick pull-wide */

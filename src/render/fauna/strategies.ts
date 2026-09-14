@@ -156,10 +156,31 @@ const jellyBell: FishStrategy = (g, px, py, _ca, _sa, l, w, detail, t) => {
   }
 };
 
+/** bulky-finned reef grazer — deep rounded body, blunt tail, a dorsal and
+ *  ventral fin bump breaking the outline instead of a forked tail */
+const bulkyFinned: FishStrategy = (g, px, py, ca, sa, l, w, detail, t) => {
+  if (detail < 0.35) {
+    dart(g, px, py, ca, sa, l, w, detail, t);
+    return;
+  }
+  mv(g, px, py, ca, sa, l * 1.1, 0); // rounded nose
+  qc(g, px, py, ca, sa, l * 0.7, w * 1.15, l * 0.1, w * 1.3); // deep upper body
+  ln(g, px, py, ca, sa, -l * 0.15, w * 1.75); // dorsal fin bump
+  ln(g, px, py, ca, sa, -l * 0.55, w * 1.3);
+  qc(g, px, py, ca, sa, -l * 0.85, w * 0.9, -l * 1.05, w * 0.35); // taper to tail
+  qc(g, px, py, ca, sa, -l * 1.15, w * 0.15, -l * 1.2, 0); // blunt tail
+  qc(g, px, py, ca, sa, -l * 1.15, -w * 0.15, -l * 1.05, -w * 0.35);
+  qc(g, px, py, ca, sa, -l * 0.85, -w * 0.9, -l * 0.55, -w * 1.3);
+  ln(g, px, py, ca, sa, -l * 0.15, -w * 1.75); // anal fin bump
+  qc(g, px, py, ca, sa, l * 0.1, -w * 1.3, l * 0.7, -w * 1.15);
+  g.closePath();
+};
+
 export const FISH_STRATEGIES: Record<string, FishStrategy> = {
   dart,
   forkedTail,
   eelRibbon,
   rayGlide,
   jellyBell,
+  bulkyFinned,
 };

@@ -157,6 +157,7 @@ export function emitWhales(
         ph: rng.next() * 9,
         size: rr(rng, size),
         age,
+        breachCool: rng.next() * 20,
       }),
     );
   };

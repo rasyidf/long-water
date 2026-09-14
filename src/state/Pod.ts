@@ -34,6 +34,11 @@ export interface PodWhale {
   size: number;
   /** 0..1 maturity: 0 a newborn calf, 1 a full-grown adult */
   age: number;
+  /** seconds left in an in-progress breach launch; overrides formation
+   *  steering while positive (see `PodBrain.follow`) */
+  breachT: number;
+  /** seconds until this whale is eligible to breach again */
+  breachCool: number;
 }
 
 /** Reference body length: the player whale, in world units. */
@@ -75,6 +80,8 @@ export interface PodWhaleInit {
   ph?: number;
   size?: number;
   age?: number;
+  breachT?: number;
+  breachCool?: number;
 }
 
 export function makePodWhale(o: PodWhaleInit): PodWhale {
@@ -98,6 +105,8 @@ export function makePodWhale(o: PodWhaleInit): PodWhale {
     ph: o.ph ?? 0,
     size,
     age,
+    breachT: o.breachT ?? 0,
+    breachCool: o.breachCool ?? 0,
   };
 }
 

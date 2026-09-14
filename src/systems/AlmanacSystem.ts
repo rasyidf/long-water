@@ -32,9 +32,15 @@ const SEEN_LIGHT = 0.12;
 /** score milestone id -> trophy id */
 const MILESTONE_TROPHY: Record<string, string> = {
   "pod-1": "pod-begins",
+  "pod-3": "growing-pod",
   "pod-6": "full-pod",
+  "pod-12": "grand-pod",
+  "pod-25": "super-pod",
+  "depth-twilight": "twilight-zone",
   "depth-dark": "into-dark",
   "depth-deep": "deep-water",
+  "depth-abyssal": "abyssal-voyager",
+  "depth-trench": "hadal-descent",
 };
 
 export interface AlmanacFind {
@@ -66,11 +72,13 @@ export class AlmanacSystem implements System {
     });
 
     bus.on("whale:breach", () => this.trophy("breach"));
-    bus.on("whale:reentry", ({ turns, cleanArc }) => {
+    bus.on("whale:reentry", ({ turns, cleanArc, apexStall, tailSlap }) => {
       if (turns >= 1) this.trophy("backflip");
       if (turns >= 3) this.trophy("triple");
       if (turns > 0 && cleanArc >= CLEAN_ARC) this.trophy("clean-entry");
       else if (turns > 0 && cleanArc <= BELLY_FLOP) this.trophy("belly-flop");
+      if (apexStall) this.trophy("perfect-apex");
+      if (tailSlap) this.trophy("tail-slapper");
     });
 
     bus.on("krill:fed", () => {
@@ -81,6 +89,9 @@ export class AlmanacSystem implements System {
 
     bus.on("pod:answered", () => this.creature("pod-whale"));
     bus.on("pod:chorus", () => this.trophy("chorus"));
+    bus.on("whale:scrape", () => this.trophy("parasite-cleansed"));
+    bus.on("pod:drafting", () => this.trophy("slipstream-rider"));
+    bus.on("squid:lockBroken", () => this.trophy("kinetic-release"));
 
     bus.on("score:milestone", ({ id }) => {
       const tr = MILESTONE_TROPHY[id];
@@ -91,7 +102,8 @@ export class AlmanacSystem implements System {
         this.trophy("close-pass");
         this.creature("ship");
       }
-      if (ctx.score.comboStep >= COMBO_LADDER.length - 1) this.trophy("flow");
+      if (ctx.score.comboStep >= COMBO_LADDER.length - 1)
+        this.trophy("flow-master");
     });
 
     bus.on("squid:grab", () => this.creature("squid"));

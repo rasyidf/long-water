@@ -1,4 +1,6 @@
-/** Lunge-feeding: surging through a krill swarm converts krill into reserves. */
+/** Feeding: passing through a krill swarm converts krill into reserves.
+ *  Automatic — no longer tied to Surge, which is purely a speed/stamina
+ *  mechanic (see PlayerBrain / VitalsSystem). */
 import type { GameContext } from "../core/GameContext";
 import type { System } from "../core/System";
 
@@ -11,10 +13,8 @@ export class FeedingSystem implements System {
   readonly name = "feeding";
 
   update(dt: number, ctx: GameContext): void {
-    const { whale, krill, input, bus, stats } = ctx;
+    const { whale, krill, bus, stats } = ctx;
     if (whale.done || !whale.alive) return;
-    const surging = input.surging && whale.breath > 0;
-    if (!surging) return;
 
     let fedThisFrame = 0;
     for (const s of krill.swarms) {
