@@ -530,8 +530,13 @@ export class Game {
    * the Pixi ticker's job; `boot`'s warm-up calls `app.render()` itself. */
   private renderScene(): void {
     const { ctx } = this;
-    ctx.camera.vw = this.app.renderer.width / this.app.renderer.resolution;
-    ctx.camera.vh = this.app.renderer.height / this.app.renderer.resolution;
+    // `screen` is already in CSS/logical units — dividing by `resolution`
+    // here shrank the camera viewport by exactly that factor, so the world
+    // only painted 1/resolution of the canvas and the rest stayed at the
+    // clear colour. Invisible at resolution 1 (a plain desktop display),
+    // obvious on a phone.
+    ctx.camera.vw = this.app.renderer.screen.width;
+    ctx.camera.vh = this.app.renderer.screen.height;
     for (const s of this.systems) s.render?.(ctx);
   }
 }

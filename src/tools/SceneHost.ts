@@ -176,8 +176,8 @@ export class SceneHost {
     const ctx = this.ctx;
     if (!ctx) return;
 
-    this.camera.vw = this.app.renderer.width / this.app.renderer.resolution;
-    this.camera.vh = this.app.renderer.height / this.app.renderer.resolution;
+    this.camera.vw = this.app.renderer.screen.width;
+    this.camera.vh = this.app.renderer.screen.height;
     for (const s of this.systems) s.update?.(this.clock.dt, ctx);
     for (const s of this.systems) s.render?.(ctx);
 

@@ -230,8 +230,8 @@ export class SquidDesigner {
     sq.ph = p.seed;
     sq.state = p.state;
 
-    this.cam.vw = this.app.renderer.width / this.app.renderer.resolution;
-    this.cam.vh = this.app.renderer.height / this.app.renderer.resolution;
+    this.cam.vw = this.app.renderer.screen.width;
+    this.cam.vh = this.app.renderer.screen.height;
     const rows = p.sheet ? SHEET.length : 1;
     this.cam.scale = p.zoom / (p.sheet ? 2.2 : 1);
     this.cam.x = 0;

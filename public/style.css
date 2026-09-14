@@ -76,16 +76,6 @@ body {
   align-items: center;
   gap: 12px;
 }
-.tb-left .wave-mark {
-  width: 30px;
-  height: 20px;
-  flex: none;
-  fill: none;
-  stroke: var(--song);
-  stroke-width: 1.6;
-  stroke-linecap: round;
-  opacity: 0.6;
-}
 .tb-zone {
   font-family: Georgia, "Times New Roman", serif;
   font-style: italic;
@@ -1515,24 +1505,30 @@ body:not([data-screen="play"]) .hud.keyhint {
   border: 1px solid rgba(159, 232, 213, 0.55);
 }
 
-/* side by side rather than stacked: a thumb resting at the bottom-right
-   corner sweeps left-right far more comfortably than it reaches straight up
-   — Surge (DOM order: second) lands closest to the corner, Sing sits up and
-   to its left along that same natural arc rather than directly above it */
+/* Action buttons sit on an arc swept by the right thumb pivoting at the
+   bottom-right corner — roughly equal reach to each, the way console-style
+   virtual pads lay them out. Surge (held constantly) takes the low, nearest
+   spot; Sing rides further up the arc. The container is just a positioning
+   frame, so it stays click-through. */
 .touch-buttons {
   position: absolute;
-  right: calc(20px + env(safe-area-inset-right));
-  bottom: calc(20px + env(safe-area-inset-bottom));
-  display: flex;
-  flex-direction: row;
-  align-items: flex-end;
-  gap: 16px;
-  pointer-events: auto;
+  right: env(safe-area-inset-right);
+  bottom: env(safe-area-inset-bottom);
+  width: 200px;
+  height: 200px;
+  pointer-events: none;
+}
+.touch-btn.surge {
+  right: 78px;
+  bottom: 30px;
 }
 .touch-btn.sing {
-  margin-bottom: 34px;
+  right: 14px;
+  bottom: 96px;
 }
 .touch-btn {
+  position: absolute;
+  pointer-events: auto;
   appearance: none;
   width: 76px;
   height: 76px;
@@ -1563,13 +1559,15 @@ body:not([data-screen="play"]) .hud.keyhint {
   background: rgba(255, 156, 91, 0.22);
 }
 
-/* top-left, independent of .topbar (its mask-image + backdrop-filter +
-   pointer-events:none combination was unreliable for a masked-in child's
-   pointer-events:auto override on Safari). Top-right was the Control
-   Center swipe zone; left avoids that specific corner. */
+/* Takes over the slot the (purely decorative) wave mark used to hold at the
+   head of the topbar — but stays a sibling of .topbar rather than a child:
+   .topbar's mask-image + backdrop-filter + pointer-events:none combination
+   was unreliable for a masked-in child's pointer-events:auto override on
+   Safari. Offsets mirror the topbar's own padding so it lands in that slot;
+   `body.is-touch .tb-left` reserves the width for it. */
 .touch-pause {
   position: absolute;
-  top: calc(16px + env(safe-area-inset-top));
+  top: calc(8px + env(safe-area-inset-top));
   left: calc(16px + env(safe-area-inset-left));
   width: 40px;
   height: 40px;
@@ -1601,7 +1599,15 @@ body:not([data-screen="play"]) .hud.keyhint {
    size: those are tap targets, not readouts. */
 body.is-touch .topbar {
   padding: 10px 16px 12px;
+  padding-left: calc(16px + env(safe-area-inset-left));
+  padding-right: calc(16px + env(safe-area-inset-right));
+  padding-top: calc(10px + env(safe-area-inset-top));
   gap: 14px;
+}
+/* room at the head of the row for .touch-pause, which stands where the
+   wave mark used to and is positioned over this gap */
+body.is-touch .tb-left {
+  padding-left: 52px;
 }
 body.is-touch .tb-zone {
   font-size: 16px;

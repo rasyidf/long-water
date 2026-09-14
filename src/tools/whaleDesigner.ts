@@ -205,8 +205,8 @@ export class WhaleDesigner {
       this.onChange();
     }
 
-    this.cam.vw = this.app.renderer.width / this.app.renderer.resolution;
-    this.cam.vh = this.app.renderer.height / this.app.renderer.resolution;
+    this.cam.vw = this.app.renderer.screen.width;
+    this.cam.vh = this.app.renderer.screen.height;
     const rows = p.sheet ? SHEET.length : 1;
     this.cam.scale = p.zoom / (p.sheet ? 2.6 : 1);
 
